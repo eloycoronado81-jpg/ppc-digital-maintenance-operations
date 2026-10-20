@@ -184,7 +184,7 @@ const SEAL_SYMPTOMS = [
   {
     id: 's_p52up', t: 'Presión del reservorio Plan 52 en aumento o alarma de alta presión',
     causes: [
-      ['Fuga del sello interno (primario) hacia el fluido buffer', cite('PPP', 'Plan 52')],
+      ['Fuga del sello interno (primario) hacia el fluido de barrera (propanol)', cite('PPP', 'Plan 52')],
       ['Venteo del reservorio restringido (orificio 1/8") o contrapresión del flare de baja presión (5–10 psi)', `${cite('LP52')}; ${cite('ING26', 10)}`],
     ],
     checks: [
@@ -200,7 +200,7 @@ const SEAL_SYMPTOMS = [
       ['Fuga del sello interno: el propanol se va al flare con el producto vaporizado', cite('JC13', 3)],
     ],
     checks: [
-      ['Prueba de consumo de buffer en stand-by con la bomba fría y detenida (etapa Plan 52)', ''],
+      ['Prueba de consumo de fluido de barrera (propanol) en stand-by con la bomba fría y detenida (etapa Plan 52)', ''],
       ['Reponer propanol por bajo nivel (≈30%) hasta el 70% del visor, coordinando con Sala de Control', cite('POP', 3)],
     ],
   },
@@ -253,8 +253,8 @@ const SEAL_SYMPTOMS = [
     ],
   },
   {
-    id: 's_fluid', t: 'Fluido buffer del Plan 52 con cambio vencido o contaminado',
-    causes: [['Degradación o contaminación del fluido buffer', cite('IOM', 19)]],
+    id: 's_fluid', t: 'Fluido de barrera (propanol) del Plan 52 con cambio vencido o contaminado',
+    causes: [['Degradación o contaminación del fluido de barrera (propanol)', cite('IOM', 19)]],
     checks: [['Cambiar a las primeras 500 horas y luego cada 6 a 8 meses, o si se contamina; enjuagar el reservorio antes de llenar', cite('IOM', 19)]],
   },
 ];

@@ -4,7 +4,7 @@
  * bloqueo de fuga con resolución, mediciones estructuradas y tendencia.
  * La aplicación guía y registra; no acciona físicamente equipos. */
 
-const APP_VERSION = 'V0.6.0';
+const APP_VERSION = 'V0.6.1';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -74,7 +74,7 @@ const CHECKS = {
     { id: 'sb9', t: 'Paso 16 · Sala de Control informada del fin de maniobras', c: 1 },
   ],
   p: [
-    { id: 'p1', t: 'Fluido buffer configurado/compatible', c: 1 },
+    { id: 'p1', t: 'Fluido de barrera (propanol) configurado/compatible', c: 1 },
     { id: 'p2', t: 'Nivel inicial verificado', c: 1 },
     { id: 'p3', t: 'Válvulas requeridas en condición operativa', c: 1 },
     { id: 'p4', t: 'Líneas del sistema verificadas sin restricción evidente', c: 1 },
@@ -313,7 +313,7 @@ function criticalBlockers() {
   }
   jointState().blockers.forEach((t) => out.push(t));
   mechState().blockers.forEach((t) => out.push(`Medición mecánica fuera de límite: ${t}`));
-  if (job.plan52.applicable && job.plan52.standby.result === 'CONSUMO') out.push('Consumo de buffer detectado en stand-by');
+  if (job.plan52.applicable && job.plan52.standby.result === 'CONSUMO') out.push('Consumo de fluido de barrera (propanol) detectado en stand-by');
   if (lastLeak()?.result === 'FUGA') out.push('Leak Test NO CONFORME sin resolución');
   return out;
 }
@@ -354,7 +354,7 @@ function gates() {
       const p = checkState('p');
       if (!p.complete) r2.push('Checklist Plan 52 incompleto');
       if (num(p52.pressure) === null || num(p52.level) === null) r2.push('Registrar presión y nivel inicial del Plan 52');
-      if (p52.standby.result === 'CONSUMO') r2.push('Consumo de buffer detectado en stand-by');
+      if (p52.standby.result === 'CONSUMO') r2.push('Consumo de fluido de barrera (propanol) detectado en stand-by');
     } else if (!p52.justification.trim()) {
       r2.push('Justificar por qué el Plan 52 no aplica');
     }
@@ -1060,7 +1060,7 @@ $('#sbResult').onchange = async (e) => {
     return render();
   }
   job.plan52.standby.result = e.target.value;
-  await commit('Prueba de consumo de buffer en stand-by', e.target.selectedOptions[0].text);
+  await commit('Prueba de consumo de fluido de barrera (propanol) en stand-by', e.target.selectedOptions[0].text);
 };
 
 // Hitos de enfriamiento

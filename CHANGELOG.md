@@ -2,6 +2,9 @@
 
 ## V0.6.0 — Responsables, PSSR de entrega, sentido de giro y adjuntos
 
+### Terminología
+- Plan 52: se usa "fluido de barrera (propanol)" en toda la app, alineado con POP-005002.
+
 ### Responsables
 - Mantenimiento: Supervisor de Mantenimiento PPC, Supervisor de Mecánica de la contratista APTIM y QA/QC (los tres obligatorios para liberar).
 - Operaciones: Operador PPC de turno y Supervisor de Producción PPC (obligatorios para la preparación y la autorización de arranque).

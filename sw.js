@@ -1,7 +1,7 @@
 /* Service Worker PPC Digital.
  * Cambiar CACHE en cada versión publicada. Estrategia red-primero: con señal siempre
  * se sirve la última versión desplegada; sin señal se usa la copia en caché. */
-const CACHE = 'ppc-digital-v0.6.0';
+const CACHE = 'ppc-digital-v0.6.1';
 const ASSETS = ['./', './index.html', './styles.css', './library.js', './app.js', './diagnosis.js', './attachments.js', './manifest.json', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {

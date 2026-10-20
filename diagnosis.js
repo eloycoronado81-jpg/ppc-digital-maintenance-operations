@@ -253,7 +253,7 @@ function detectFindings() {
     if (psig !== null && (psig > PROC.barrier.max || (p0 !== null && psig > p0 + 0.5))) out.push({ t: `Presión del Plan 52 en ${fmtN(psig, 1)} psig (inicial ${fmtN(p0, 1)} psig; normal 0–5 psig)`, seal: ['s_p52up'] });
   }
   const l52 = ms.filter((m) => m.values.l52 !== undefined);
-  if (job.plan52.standby.result === 'CONSUMO' || (l52.length > 1 && l52.at(-1).values.l52 < l52[0].values.l52)) out.push({ t: 'Consumo de buffer detectado (stand-by o tendencia de nivel)', seal: ['s_p52low'] });
+  if (job.plan52.standby.result === 'CONSUMO' || (l52.length > 1 && l52.at(-1).values.l52 < l52[0].values.l52)) out.push({ t: 'Consumo de fluido de barrera (propanol) detectado (stand-by o tendencia de nivel)', seal: ['s_p52low'] });
   if (job.leakEvents.some((e) => e.result === 'FUGA')) out.push({ t: 'Leak Test con fuga registrada en este expediente', seal: ['s_gland'] });
   const v = vaporMargin();
   if (v && v.tests.some((t) => t.id === 'jc13' && !t.ok)) out.push({ t: 'Margen de presión de vapor en la cavidad bajo la referencia de 30%', seal: ['s_dry'] });
