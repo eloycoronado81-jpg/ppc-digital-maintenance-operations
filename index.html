@@ -13,7 +13,7 @@
 <body class="no-job">
   <header>
     <div>
-      <small>PPC DIGITAL · AFTON · V0.5 PILOTO</small>
+      <small>PPC DIGITAL · AFTON · V0.6 PILOTO</small>
       <h1>Lista de Verificación – Proceso de Arranque de Bomba de Reflujo</h1>
       <p>Mantenimiento · QA/QC · Operaciones · Trazabilidad por TAG</p>
     </div>
@@ -69,7 +69,7 @@
               </select>
             </label>
             <label>OT / SAP *<input id="ot" placeholder="Obligatorio para liberar"></label>
-            <label>PSSR *<input id="pssr" placeholder="Obligatorio para arrancar"></label>
+            <label>PSSR *<input id="pssr" placeholder="Obligatorio para la entrega"></label>
           </div>
         </fieldset>
         <div class="equip-strip"><span id="equipSummary"></span><button type="button" id="editEquip">Ficha del equipo y criterios</button></div>
@@ -108,6 +108,7 @@
               <h3 class="mt">Uniones bridadas · protocolo de torque</h3>
               <div id="jointsBox"></div>
               <label id="torqueRefWrap">Referencia protocolo de torque * <small class="muted">(N.° FORM-TORQ-001 / OT, o “No aplica” si no se intervinieron juntas)</small><input id="torqueRef" placeholder="Ej. FORM-TORQ-001 · OT 10003378"></label>
+              <div id="torqueAttach"></div>
               <p class="ref"><small id="torqueRefText"></small></p>
               <div id="mechBox"></div>
               <label>Observación de Mantenimiento<textarea id="maintenanceObs" rows="2" placeholder="Obligatoria si algún punto queda NO OK"></textarea></label>
@@ -120,16 +121,21 @@
             <h2>Responsables</h2>
             <fieldset data-fs="0">
               <div class="two">
-                <label>Supervisor Mantenimiento *<input id="pMaint"></label>
+                <label>Supervisor de Mantenimiento PPC *<input id="pMaint"></label>
+                <label>Supervisor de Mecánica APTIM (contratista) *<input id="pAptim"></label>
                 <label>QA/QC *<input id="pQa"></label>
               </div>
             </fieldset>
             <div class="rule">
               <b>Regla de liberación</b>
-              <p>Requiere OT/SAP, referencia del protocolo de torque, todos los puntos en OK (o N/A cuando no es crítico), Supervisor de Mantenimiento y QA/QC. Un punto crítico NO OK bloquea la liberación. Una vez liberado, el checklist queda congelado; para corregirlo se debe revocar la liberación, lo que queda registrado.</p>
+              <p>Requiere OT/SAP, referencia del protocolo de torque, todos los puntos en OK (o N/A cuando no es crítico), Supervisor de Mantenimiento PPC, Supervisor de Mecánica APTIM y QA/QC. Un punto crítico NO OK bloquea la liberación. Una vez liberado, el checklist queda congelado; para corregirlo se debe revocar la liberación, lo que queda registrado.</p>
             </div>
           </article>
         </div>
+        <article class="card pssr-card">
+          <h2>📝 PSSR · entrega de la bomba a Operaciones</h2>
+          <div id="pssrBox"></div>
+        </article>
       </section>
 
       <!-- Etapa 2 -->
@@ -143,8 +149,8 @@
           <fieldset data-fs="1">
             <div id="operationsChecklist" class="checklist"></div>
             <div class="two">
-              <label>Operador *<input id="pOperator"></label>
-              <label>Supervisor Operaciones *<input id="pOps"></label>
+              <label>Operador PPC de turno *<input id="pOperator"></label>
+              <label>Supervisor de Producción PPC *<input id="pOps"></label>
             </div>
           </fieldset>
           <p class="notice">Las maniobras específicas se ejecutan conforme al procedimiento operativo vigente. Si Mantenimiento revoca o vuelve a emitir la liberación, este checklist debe re-verificarse.</p>
@@ -303,6 +309,7 @@
             <h2>Post-arranque (Pasos 8–16)</h2>
             <div id="postStartChecklist" class="checklist"></div>
             <h2>Cierre del expediente</h2>
+            <label>Especialista CBM *<input id="pCbm" placeholder="Evaluó la condición dinámica en la estabilización"></label>
             <fieldset data-fs="6">
               <label>Resultado final *
                 <select id="closeResult">
@@ -413,5 +420,6 @@
   <script src="library.js"></script>
   <script src="app.js"></script>
   <script src="diagnosis.js"></script>
+  <script src="attachments.js"></script>
 </body>
 </html>

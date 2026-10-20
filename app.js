@@ -4,7 +4,7 @@
  * bloqueo de fuga con resolución, mediciones estructuradas y tendencia.
  * La aplicación guía y registra; no acciona físicamente equipos. */
 
-const APP_VERSION = 'V0.5.0';
+const APP_VERSION = 'V0.6.0';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -27,6 +27,8 @@ const CHECKS = {
     { id: 'm5', t: 'Acoplamiento y pernos verificados', c: 1 },
     { id: 'm6', t: 'Guardas instaladas', c: 1 },
     { id: 'm7', t: 'Rotación manual libre', c: 1 },
+    { id: 'm10', t: 'Sentido de giro del motor eléctrico verificado (desacoplado, energización momentánea)', c: 1,
+      ref: 'Correcto: horario (CW) mirando hacia abajo sobre el motor · IOM Afton 40824, pág. 32 y 34. Retirar espaciador del acople, bloquear y energizar momentáneamente; corregir conexiones con el motor bloqueado · Informe John Crane 2013, pág. 4' },
     { id: 'm8', t: 'Lubricación/nivel verificado', c: 1 },
     { id: 'm9', t: 'Área libre de materiales y herramientas', c: 1 },
   ],
@@ -83,6 +85,14 @@ const CHECKS = {
   ],
 };
 
+/* Firmas del PSSR requeridas para iniciar la entrega de la bomba a Operaciones (todas de Pluspetrol / PPC). */
+const PSSR_ROLES = [
+  { k: 'mec', t: 'Supervisor de Mecánica PPC' },
+  { k: 'ins', t: 'Supervisor de Instrumentación PPC' },
+  { k: 'ele', t: 'Supervisor de Electricidad PPC' },
+  { k: 'seg', t: 'Supervisor de Seguridad PPC' },
+];
+
 const MILESTONES = {
   COOL_START: 'Inicio de purga / enfriamiento hacia COLD FLARE',
   COOL_END: 'Congelamiento observado · fin de enfriamiento',
@@ -127,6 +137,7 @@ const PARAMS = [
 const STATUS_LABEL = {
   DRAFT: 'Borrador',
   MAINTENANCE_RELEASE: 'Liberación Mantenimiento',
+  PSSR_PENDING: 'PSSR pendiente de firmas',
   OPERATIONS_PREP: 'Preparación Operaciones',
   COOLING_PRIMING: 'Enfriamiento / cebado',
   LEAK_TEST: 'Leak Test',
@@ -149,9 +160,10 @@ function openDB() {
   return new Promise((resolve) => {
     if (!('indexedDB' in window)) return resolve(null);
     try {
-      const req = indexedDB.open(DB_NAME, 1);
+      const req = indexedDB.open(DB_NAME, 2);
       req.onupgradeneeded = () => {
         if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE, { keyPath: 'id' });
+        if (!req.result.objectStoreNames.contains('files')) req.result.createObjectStore('files', { keyPath: 'id' });
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => resolve(null);
@@ -217,7 +229,8 @@ function blankJob() {
     reason: $('#reason').options[0].text,
     ot: '',
     pssr: '',
-    people: { maint: '', qa: '', operator: '', ops: '' },
+    people: { maint: '', aptim: '', qa: '', operator: '', ops: '', cbm: '' },
+    pssrSign: {},
     checks: { m: {}, o: {}, p: {}, c: {}, sa: {}, sb: {} },
     torqueRef: '',
     joints: {},
@@ -225,6 +238,7 @@ function blankJob() {
     hyd: {},
     diagSel: [],
     diagnoses: [],
+    attachments: [],
     cooling: { initial: '' },
     maintenanceObs: '',
     maintenanceRelease: null,
@@ -246,11 +260,12 @@ function normalize(j) {
   const base = blankJobShape();
   for (const [k, v] of Object.entries(base)) if (j[k] === undefined) j[k] = v;
   for (const k of Object.keys(base.checks)) if (!j.checks[k]) j.checks[k] = {};
+  j.people = { maint: '', aptim: '', qa: '', operator: '', ops: '', cbm: '', ...(j.people || {}) };
   return j;
 }
 function blankJobShape() {
   return {
-    checks: { m: {}, o: {}, p: {}, c: {}, sa: {}, sb: {} }, torqueRef: '', joints: {}, mech: {}, hyd: {}, diagSel: [], diagnoses: [], cooling: { initial: '' }, releaseHistory: [],
+    checks: { m: {}, o: {}, p: {}, c: {}, sa: {}, sb: {} }, torqueRef: '', joints: {}, mech: {}, hyd: {}, diagSel: [], diagnoses: [], attachments: [], cooling: { initial: '' }, releaseHistory: [], pssrSign: {},
     units: Object.fromEntries(PARAMS.map((p) => [p.k, p.u[0]])), leakEvents: [], milestones: [], measurements: [], audit: [],
   };
 }
@@ -303,19 +318,32 @@ function criticalBlockers() {
   return out;
 }
 
+/* Una firma del PSSR solo vale si es posterior a la liberación de Mantenimiento vigente. */
+const pssrSig = (k) => {
+  const s = job.pssrSign?.[k];
+  return s && released() && s.at >= releaseAt() ? s : null;
+};
+function pssrMissing() {
+  const out = [];
+  if (!job.pssr.trim()) out.push('Registrar N.° de PSSR');
+  PSSR_ROLES.forEach((r) => { if (!pssrSig(r.k)) out.push(`Firma PSSR: ${r.t}`); });
+  return out;
+}
+
 /* gates()[n] = requisitos pendientes para habilitar la etapa n+1 (acumulativos). */
 function gates() {
   const g = [];
   const r0 = [];
   if (!released()) r0.push('Liberación de Mantenimiento pendiente');
+  else r0.push(...pssrMissing());
   g[0] = r0;
 
   const r1 = [...r0];
   const o = checkState('o');
   if (released()) {
     if (!o.complete) r1.push(`Checklist de Operaciones incompleto (${o.pending.length + o.criticalNo.length + o.nonCriticalNo.length} punto/s)`);
-    if (!job.people.operator.trim()) r1.push('Registrar Operador');
-    if (!job.people.ops.trim()) r1.push('Registrar Supervisor de Operaciones');
+    if (!job.people.operator.trim()) r1.push('Registrar Operador PPC de turno');
+    if (!job.people.ops.trim()) r1.push('Registrar Supervisor de Producción PPC');
   }
   g[1] = r1;
 
@@ -376,6 +404,7 @@ function computeStatus() {
   if (g[3].length === 0) return 'LEAK_TEST';
   if (g[2].length === 0) return 'COOLING_PRIMING';
   if (g[0].length === 0) return 'OPERATIONS_PREP';
+  if (released()) return 'PSSR_PENDING';
   return Object.keys(job.checks.m).length ? 'MAINTENANCE_RELEASE' : 'DRAFT';
 }
 
@@ -436,7 +465,7 @@ function renderChecklist(container, k, locked) {
     const v = a && !a.stale ? a.v : '';
     const meta = a ? (a.stale ? '<em class="stale">Re-verificar tras nueva liberación</em>' : `<em>${esc(a.by)} · ${esc(fmtTime(a.at))}</em>`) : '';
     return `<div class="checkrow ${v === 'NO' ? 'is-no' : v === 'OK' ? 'is-ok' : ''}">
-      <div><b>${esc(it.t)}</b>${it.c ? '<small>CRÍTICO</small>' : ''}${meta}</div>
+      <div><b>${esc(it.t)}</b>${it.c ? '<small>CRÍTICO</small>' : ''}${it.ref ? `<em class="ref-note">📘 ${esc(it.ref)}</em>` : ''}${meta}</div>
       <select data-check="${k}" data-id="${it.id}" ${locked ? 'disabled' : ''}>
         <option value="">Pendiente</option><option value="OK">OK</option><option value="NO">NO OK</option>${naAllowed(k, it) || v === 'NA' ? '<option value="NA">N/A</option>' : ''}
       </select></div>`;
@@ -683,11 +712,15 @@ function render() {
   setVal('#ot', job.ot);
   setVal('#pssr', job.pssr);
   ['#tag', '#addTag', '#area', '#reason', '#ot', '#torqueRef'].forEach((s) => ($(s).disabled = isClosed || released()));
-  $('#pssr').disabled = isClosed || lockedAfterStart;
+  $('#pssr').disabled = isClosed || lockedAfterStart || PSSR_ROLES.some((r) => pssrSig(r.k));
 
   // Personas
   setVal('#pMaint', job.people.maint);
   setVal('#pQa', job.people.qa);
+  setVal('#pAptim', job.people.aptim);
+  setVal('#pCbm', job.people.cbm);
+  $('#pCbm').disabled = isClosed;
+  renderPssr();
   setVal('#pOperator', job.people.operator);
   setVal('#pOps', job.people.ops);
   setVal('#maintenanceObs', job.maintenanceObs);
@@ -705,6 +738,7 @@ function render() {
   // Etapa 1
   renderChecklist('#maintenanceChecklist', 'm', isClosed || released());
   renderJointsMech();
+  $('#torqueAttach').innerHTML = libOf(job.tag)?.joints ? '' : attachWidget('torque', isClosed || released());
   const popScope = ['CRIO 1', 'CRIO 2'].includes(job.area);
   $$('.pop-scope').forEach((e) => {
     e.textContent = popScope ? `⚠ ${PROC.code} cubre Criogénica 3, 4 y 5. Para ${job.area}, los pasos se muestran como guía: confirme contra el procedimiento vigente de esta área.` : '';
@@ -714,14 +748,16 @@ function render() {
   $('#discStart').innerHTML = `<b>⚠ ${esc(dz.t)}: las fuentes no coinciden</b><ul>${dz.items.map(([a, b]) => `<li><b>${esc(a)}:</b> ${esc(b)}</li>`).join('')}</ul><small>${esc(dz.note)}</small>`;
   const rel = job.maintenanceRelease;
   $('#maintenanceResult').innerHTML = !rel && gateMsg.m ? gateMsg.m : rel
-    ? `<b class="green">MANTENIMIENTO LIBERADO · ${esc(fmt(rel.at))} · ${esc(rel.by)} (Sup.: ${esc(rel.supervisor)} · QA/QC: ${esc(rel.qa)})</b>`
+    ? `<b class="green">MANTENIMIENTO LIBERADO · ${esc(fmt(rel.at))} · ${esc(rel.by)} (Sup. Mant. PPC: ${esc(rel.supervisor)} · Sup. Mecánica APTIM: ${esc(rel.aptim || '')} · QA/QC: ${esc(rel.qa)})</b>`
     : job.releaseHistory.length
       ? `<b class="red">Liberación revocada ${esc(fmt(job.releaseHistory.at(-1).revokedAt))}: ${esc(job.releaseHistory.at(-1).revokeReasonText)}</b>`
       : '';
   $('#reopenMaintenance').classList.toggle('hidden', !rel || isClosed || lockedAfterStart);
 
   // Etapa 2
-  $('#releaseReceived').innerHTML = rel ? `✔ Liberación de Mantenimiento recibida: ${esc(fmt(rel.at))} · ${esc(rel.by)}` : '✖ Sin liberación de Mantenimiento vigente.';
+  $('#releaseReceived').innerHTML = rel
+    ? `✔ Liberación de Mantenimiento: ${esc(fmt(rel.at))} · ${esc(rel.by)}<br>${pssrMissing().length ? '✖ Entrega pendiente: ' + esc(pssrMissing().join(' · ')) : `✔ PSSR ${esc(job.pssr)} firmado por los cuatro supervisores PPC: bomba entregada a Operaciones`}`
+    : '✖ Sin liberación de Mantenimiento vigente.';
   renderChecklist('#operationsChecklist', 'o', isClosed || lockedAfterStart || !released());
 
   // Etapa 3
@@ -892,7 +928,10 @@ Object.entries(FIELD_MAP).forEach(([sel, [key, label]]) => {
     await commit(`${label} actualizado`, job[key]);
   });
 });
-const PEOPLE_MAP = { '#pMaint': ['maint', 'Supervisor Mantenimiento'], '#pQa': ['qa', 'QA/QC'], '#pOperator': ['operator', 'Operador'], '#pOps': ['ops', 'Supervisor Operaciones'] };
+const PEOPLE_MAP = {
+  '#pMaint': ['maint', 'Supervisor de Mantenimiento PPC'], '#pAptim': ['aptim', 'Supervisor de Mecánica APTIM'], '#pQa': ['qa', 'QA/QC'],
+  '#pOperator': ['operator', 'Operador PPC de turno'], '#pOps': ['ops', 'Supervisor de Producción PPC'], '#pCbm': ['cbm', 'Especialista CBM'],
+};
 Object.entries(PEOPLE_MAP).forEach(([sel, [key, label]]) => {
   $(sel).addEventListener('change', async (e) => {
     if (!job || !requireUser()) { document.activeElement?.blur(); return render(); }
@@ -922,10 +961,12 @@ $('#releaseMaintenance').onclick = async () => {
   if (!job.ot) missing.push('OT/SAP');
   const js = jointState(), mst = mechState();
   if (!js.applies && !job.torqueRef) missing.push('referencia del protocolo de torque (FORM-TORQ) o “No aplica”');
+  if (!js.applies && job.torqueRef && !/no aplica/i.test(job.torqueRef) && !attachList('torque').length) missing.push('adjuntar el protocolo de torque (PDF o imagen)');
   missing.push(...js.missing, ...mst.missing);
   if (js.blockers.length) missing.push(...js.blockers);
   if (mst.blockers.length) missing.push(...mst.blockers.map((b) => 'fuera de límite: ' + b));
-  if (!job.people.maint) missing.push('Supervisor de Mantenimiento');
+  if (!job.people.maint) missing.push('Supervisor de Mantenimiento PPC');
+  if (!job.people.aptim) missing.push('Supervisor de Mecánica APTIM');
   if (!job.people.qa) missing.push('QA/QC');
   if (m.criticalNo.length) missing.push(`puntos críticos NO OK (${m.criticalNo.length})`);
   if (m.pending.length) missing.push(`puntos pendientes (${m.pending.length})`);
@@ -937,9 +978,10 @@ $('#releaseMaintenance').onclick = async () => {
     return;
   }
   gateMsg.m = '';
-  job.maintenanceRelease = { at: nowISO(), by: currentUser(), supervisor: job.people.maint, qa: job.people.qa, revision: job.revision };
-  await commit('Gate Mantenimiento: LIBERADO', `Sup. ${job.people.maint} · QA/QC ${job.people.qa}`);
-  flash('Mantenimiento liberado. Operaciones puede iniciar su preparación.', 'good');
+  job.maintenanceRelease = { at: nowISO(), by: currentUser(), supervisor: job.people.maint, aptim: job.people.aptim, qa: job.people.qa, revision: job.revision };
+  await commit('Gate Mantenimiento: LIBERADO', `Sup. Mant. PPC ${job.people.maint} · Sup. Mecánica APTIM ${job.people.aptim} · QA/QC ${job.people.qa}`);
+  flash('Mantenimiento liberado. Para entregar la bomba a Operaciones, el PSSR debe ser firmado por los supervisores PPC de Mecánica, Instrumentación, Electricidad y Seguridad.', 'good');
+
 };
 $('#reopenMaintenance').onclick = async () => {
   if (!requireUser()) return;
@@ -954,6 +996,32 @@ function revokeRelease(kind, text) {
   job.maintenanceRelease = null;
   job.cooling.initial = '';
 }
+
+// PSSR · firmas para la entrega
+function renderPssr() {
+  const locked = closed() || !!job.startAuth || !released();
+  $('#pssrBox').innerHTML = `<p class="muted">${released() ? 'Para iniciar la entrega de la bomba a Operaciones, el PSSR debe estar firmado por estos cuatro supervisores de Pluspetrol (PPC).' : 'Disponible después de la liberación de Mantenimiento.'}</p>
+    <div class="table-wrap"><table><thead><tr><th>Rol</th><th>Nombre</th><th>Firma</th></tr></thead><tbody>${PSSR_ROLES.map((r) => {
+      const s = pssrSig(r.k);
+      const stale = job.pssrSign?.[r.k] && !s;
+      return `<tr class="${s ? '' : 'warn-row'}"><td><b>${esc(r.t)}</b></td>
+        <td><input data-pssr-name="${r.k}" value="${esc(s?.name || '')}" placeholder="Nombre y apellido" ${locked || s ? 'disabled' : ''}></td>
+        <td>${s ? `<b class="green">✔ Firmado</b><br><small class="muted">${esc(fmt(s.at))} · registrado por ${esc(s.by)}</small>` : `<button type="button" data-pssr-sign="${r.k}" ${locked ? 'disabled' : ''}>Firmar</button>${stale ? '<br><small class="stale">Firma anterior anulada por nueva liberación</small>' : ''}`}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-pssr-sign]');
+  if (!b || !job) return;
+  if (!requireUser()) return;
+  const k = b.dataset.pssrSign;
+  const role = PSSR_ROLES.find((r) => r.k === k);
+  const name = $(`[data-pssr-name="${k}"]`).value.trim();
+  if (!job.pssr.trim()) { $('#pssr').focus(); return flash('Registre primero el N.° de PSSR en la identificación.', 'warn'); }
+  if (!name) { $(`[data-pssr-name="${k}"]`).focus(); return flash(`Ingrese el nombre del ${role.t}.`, 'warn'); }
+  job.pssrSign = { ...(job.pssrSign || {}), [k]: { name, at: nowISO(), by: currentUser() } };
+  await commit(`PSSR ${job.pssr} firmado`, `${role.t}: ${name}`);
+  if (!pssrMissing().length) flash('PSSR firmado por los cuatro supervisores PPC. Bomba entregada a Operaciones.', 'good');
+});
 
 // Plan 52
 $('#plan52Applicable').onchange = async (e) => {
@@ -1062,8 +1130,8 @@ $('#authorizeStart').onclick = async () => {
     return;
   }
   gateMsg.s = '';
-  job.startAuth = { at: nowISO(), by: currentUser(), ops: job.people.ops, revision: job.revision };
-  await commit('Gate de arranque: HABILITADO DOCUMENTALMENTE', `Sup. Operaciones ${job.people.ops}`);
+  job.startAuth = { at: nowISO(), by: currentUser(), ops: job.people.ops, operator: job.people.operator, revision: job.revision };
+  await commit('Gate de arranque: HABILITADO DOCUMENTALMENTE', `Sup. Producción PPC ${job.people.ops} · Operador PPC ${job.people.operator}`);
 };
 $('#startDone').onclick = async () => {
   if (!requireUser()) return;
@@ -1124,6 +1192,7 @@ $('#closeJob').onclick = async () => {
   if (!milestone('START')) missing.push('arranque ejecutado');
   if (!stab.length) missing.push('al menos una medición de estabilización');
   if (!checkState('sb').complete) missing.push('pasos 8 a 16 del procedimiento');
+  if (!job.people.cbm) missing.push('Especialista CBM que evaluó la estabilización');
   if (!result) missing.push('resultado final');
   if (result === 'REQUIERE_EVALUACION' && !obs) missing.push('observación de cierre');
   const last = job.measurements.at(-1);
@@ -1133,7 +1202,7 @@ $('#closeJob').onclick = async () => {
     $('#closeMsg').innerHTML = `<b class="red">No se puede cerrar · Falta: ${esc(missing.join(', '))}</b>`;
     return;
   }
-  job.closure = { at: nowISO(), by: currentUser(), result, obs };
+  job.closure = { at: nowISO(), by: currentUser(), result, obs, cbm: job.people.cbm };
   await commit('Expediente CERRADO', `${result === 'ESTABLE' ? 'EQUIPO ESTABLE' : 'REQUIERE EVALUACIÓN'}${obs ? ' · ' + obs : ''}`);
   flash('Expediente cerrado. Queda en solo lectura.', 'good');
 };
@@ -1163,8 +1232,10 @@ function buildReport() {
     <p>Expediente ${esc(job.id)} · Estado: ${esc(STATUS_LABEL[job.status])} · Generado ${esc(fmt(nowISO()))} · ${esc(APP_VERSION)}</p>
     <table><tr><td>Área</td><td>${esc(job.area)}</td><td>Motivo</td><td>${esc(job.reason)}</td></tr>
     <tr><td>OT/SAP</td><td>${esc(job.ot)}</td><td>PSSR</td><td>${esc(job.pssr)}</td></tr>
-    <tr><td>Sup. Mantenimiento</td><td>${esc(p.maint)}</td><td>QA/QC</td><td>${esc(p.qa)}</td></tr>
-    <tr><td>Operador</td><td>${esc(p.operator)}</td><td>Sup. Operaciones</td><td>${esc(p.ops)}</td></tr></table>
+    <tr><td>Sup. Mantenimiento PPC</td><td>${esc(p.maint)}</td><td>Sup. Mecánica APTIM</td><td>${esc(p.aptim)}</td></tr>
+    <tr><td>QA/QC</td><td>${esc(p.qa)}</td><td>Especialista CBM</td><td>${esc(p.cbm)}</td></tr>
+    <tr><td>Operador PPC de turno</td><td>${esc(p.operator)}</td><td>Sup. Producción PPC</td><td>${esc(p.ops)}</td></tr></table>
+    <h2>PSSR ${esc(job.pssr)} · firmas para la entrega</h2><table>${PSSR_ROLES.map((r) => { const s = pssrSig(r.k); return `<tr><td>${esc(r.t)}</td><td>${s ? esc(s.name) : 'Pendiente'}</td><td>${s ? esc(fmt(s.at)) + ' · registrado por ' + esc(s.by) : ''}</td></tr>`; }).join('')}</table>
     <h2>Liberación de Mantenimiento</h2><table>${chk('m')}</table>
     <p>${job.maintenanceRelease ? `Liberado ${esc(fmt(job.maintenanceRelease.at))} por ${esc(job.maintenanceRelease.by)}` : 'Sin liberación vigente'} · Observación: ${esc(job.maintenanceObs)}</p>
     <h2>Preparación de Operaciones</h2><table>${chk('o')}</table>
@@ -1180,9 +1251,10 @@ function buildReport() {
     <h2>Mediciones</h2>${$('#measureTable').innerHTML}
     <h2>Cierre</h2><p>${job.closure ? `${job.closure.result === 'ESTABLE' ? 'EQUIPO ESTABLE' : 'REQUIERE EVALUACIÓN'} · ${esc(fmt(job.closure.at))} · ${esc(job.closure.by)} · ${esc(job.closure.obs)}` : 'Expediente abierto'}</p>
     <h2>Uniones bridadas y mediciones mecánicas</h2><table>${(libOf(job.tag)?.joints || []).map((jt) => { const r = job.joints?.[jt.id] || {}; return `<tr><td>${esc(jt.t)}</td><td>${esc(r.used === 'SI' ? 'Intervenida' : r.used === 'NO' ? 'No intervenida' : 'Pendiente')}</td><td>${esc(r.ref || '')}</td><td>${esc(r.result || '')}</td></tr>`; }).join('')}${(libOf(job.tag)?.mech || []).map((m) => `<tr><td>${esc(m.t)}</td><td>máx. ${m.max}"</td><td>${esc(job.mech?.[m.k]?.v ?? '')}"</td><td>${esc(m.src)}</td></tr>`).join('')}</table>
+    <h2>Protocolos de torque adjuntos</h2>${attachList().length ? `<table>${attachList().map((a) => `<tr><td>${esc(attachScopeLabel(a.scope))}</td><td>${esc(a.name)}</td><td>${esc(fmtSize(a.size))}</td><td>${esc(fmt(a.at))} · ${esc(a.by)}</td><td><small>SHA-256 ${esc(a.hash || '—')}</small></td></tr>`).join('')}</table>` : '<p>Sin adjuntos.</p>'}
     <h2>Diagnósticos</h2>${(job.diagnoses || []).map((d) => `<p><b>${esc(fmt(d.at))} · ${esc(d.by)}</b>: ${esc(d.symptoms.join('; '))}${d.findings?.length ? ' · Hallazgos: ' + esc(d.findings.join('; ')) : ''}${d.obs ? ' · ' + esc(d.obs) : ''}</p>`).join('') || '<p>Sin diagnósticos registrados.</p>'}
     <h2>Auditoría</h2>${$('#log').innerHTML}
-    <p class="sig">Firmas: ________________ Mantenimiento &nbsp; ________________ QA/QC &nbsp; ________________ Operaciones</p>`;
+    <p class="sig">Firmas: ________________ Sup. Mantenimiento PPC &nbsp; ________________ Sup. Mecánica APTIM &nbsp; ________________ QA/QC<br><br>________________ Operador PPC de turno &nbsp; ________________ Sup. Producción PPC &nbsp; ________________ Especialista CBM</p>`;
 }
 
 // TAGs

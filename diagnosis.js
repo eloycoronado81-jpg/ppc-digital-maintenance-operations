@@ -38,6 +38,7 @@ function jointState() {
     else if (r.used === 'SI') {
       if (!r.ref) missing.push(`protocolo FORM-TORQ de ${jt.t}`);
       if (!r.result) missing.push(`resultado del torque de ${jt.t}`);
+      if (!attachList('joint:' + jt.id).length) missing.push(`adjuntar protocolo de torque de ${jt.t}`);
       if (r.result === 'NO_CONFORME') blockers.push(`Torque NO CONFORME: ${jt.t}`);
     }
   });
@@ -63,13 +64,14 @@ function renderJointsMech() {
   if (!lib?.joints) {
     $('#jointsBox').innerHTML = '<p class="muted">Este TAG no tiene uniones precargadas en la biblioteca: registre la referencia general del protocolo de torque.</p>';
   } else {
-    $('#jointsBox').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Unión bridada</th><th>¿Intervenida?</th><th>Protocolo FORM-TORQ N.°</th><th>Resultado</th><th>Registro</th></tr></thead><tbody>${lib.joints.map((jt) => {
+    $('#jointsBox').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Unión bridada</th><th>¿Intervenida?</th><th>Protocolo FORM-TORQ N.°</th><th>Resultado</th><th>Protocolo adjunto</th><th>Registro</th></tr></thead><tbody>${lib.joints.map((jt) => {
       const r = job.joints?.[jt.id] || {};
       const dis = locked ? 'disabled' : '';
       return `<tr class="${r.result === 'NO_CONFORME' ? 'row-alert' : ''}"><td><b>${esc(jt.t)}</b><br><small class="muted">${esc(jt.src)}</small></td>
         <td><select data-joint="${jt.id}" data-f="used" ${dis}><option value="">—</option><option value="SI" ${r.used === 'SI' ? 'selected' : ''}>Sí</option><option value="NO" ${r.used === 'NO' ? 'selected' : ''}>No</option></select></td>
         <td><input data-joint="${jt.id}" data-f="ref" value="${esc(r.ref || '')}" placeholder="FORM-TORQ-001 / OT" ${dis || (r.used !== 'SI' ? 'disabled' : '')}></td>
         <td><select data-joint="${jt.id}" data-f="result" ${dis || (r.used !== 'SI' ? 'disabled' : '')}><option value="">—</option><option value="CONFORME" ${r.result === 'CONFORME' ? 'selected' : ''}>Conforme</option><option value="NO_CONFORME" ${r.result === 'NO_CONFORME' ? 'selected' : ''}>No conforme</option></select></td>
+        <td>${r.used === 'SI' ? attachWidget('joint:' + jt.id, locked) : '<small class="muted">—</small>'}</td>
         <td><small class="muted">${r.by ? esc(r.by) + ' · ' + esc(fmtTime(r.at)) : ''}</small></td></tr>`;
     }).join('')}</tbody></table></div>`;
   }

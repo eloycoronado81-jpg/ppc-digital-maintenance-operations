@@ -206,6 +206,17 @@ tr.warn-row td { background: #fff7db; }
 #hydResults td { white-space: normal; }
 #equipData td, #diagHiCauses td, #jointsBox td, #mechBox td { white-space: normal; vertical-align: top; }
 
+.checkrow em.ref-note { color: #2c4a63; }
+.att-box { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.att { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid #dbe7ee; border-radius: 8px; background: #f8fbfd; font-size: 0.82rem; flex-wrap: wrap; }
+.att span { display: flex; gap: 6px; align-items: center; }
+button.mini { min-height: 32px; padding: 5px 10px; font-size: 0.78rem; }
+.file-btn { display: inline-flex; align-items: center; gap: 6px; margin: 0; width: fit-content; padding: 9px 14px; border: 1px dashed #0b6e75; border-radius: 9px; color: #0b6e75; cursor: pointer; background: #f0fbfa; font-size: 0.84rem; }
+fieldset:disabled .file-btn { display: none; }
+.pssr-card { border-top: 4px solid #073b66; }
+#pssrBox td { white-space: normal; vertical-align: middle; }
+#pssrBox input { margin: 0; min-height: 40px; }
+
 footer { text-align: center; padding: 20px; color: #65798a; }
 .report { display: none; }
 

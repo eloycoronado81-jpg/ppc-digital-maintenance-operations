@@ -1,5 +1,20 @@
 # Registro de cambios
 
+## V0.6.0 — Responsables, PSSR de entrega, sentido de giro y adjuntos
+
+### Responsables
+- Mantenimiento: Supervisor de Mantenimiento PPC, Supervisor de Mecánica de la contratista APTIM y QA/QC (los tres obligatorios para liberar).
+- Operaciones: Operador PPC de turno y Supervisor de Producción PPC (obligatorios para la preparación y la autorización de arranque).
+- Cierre: Especialista CBM que evaluó la estabilización (obligatorio para cerrar el expediente).
+
+### PSSR · entrega de la bomba a Operaciones
+- Después de liberar Mantenimiento, la entrega solo se inicia con el N.° de PSSR y las firmas de los supervisores PPC de Mecánica, Instrumentación, Electricidad y Seguridad.
+- Nuevo estado "PSSR pendiente de firmas". Si Mantenimiento revoca la liberación o se retorna por fuga, las firmas anteriores quedan anuladas y se deben volver a registrar.
+
+### Mantenimiento
+- Verificación crítica del sentido de giro del motor eléctrico (horario mirando hacia abajo sobre el motor, IOM pág. 32 y 34; método desacoplado con energización momentánea, informe John Crane 2013).
+- Adjunto del protocolo de torque en PDF o imagen (también con la cámara de la tablet), por cada unión bridada o como referencia general. Obligatorio para liberar cuando hubo intervención. Se guarda en el dispositivo con huella SHA-256; quitar un adjunto queda en la auditoría y los adjuntos se congelan al liberar.
+
 ## V0.5.0 — Biblioteca técnica, diagnóstico y desempeño hidráulico
 
 Basado en la documentación técnica de las bombas de reflujo (manual IOM Afton 40824, POP-005002, informe John Crane 2013, correos JC PAY-14225, MMP-PPC-002 rev. 12, Piping Plan Pocket Pal, manual y plano Lemco Plan 52, PGRAL-100-IN-M-001). Cada dato muestra su fuente y página.
