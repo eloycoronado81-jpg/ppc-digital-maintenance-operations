@@ -538,7 +538,9 @@ function evalParam(tag, k, v, u) {
 const EVAL_LABEL = { N: 'Normal', A: 'Alerta', X: 'Acción', U: 'Unidad distinta al criterio', '': 'Sin criterio configurado' };
 const SERIES_COLOR = { ps: '#2563eb', pd: '#dc2626', dp: '#16a34a', flow: '#7c3aed', amps: '#ea580c', vp: '#0891b2', vm: '#9333ea', temp: '#b91c1c', p52: '#0d9488', l52: '#ca8a04' };
 const TREND_GROUPS = [
-  { id: 'press', t: 'Presiones y ΔP', keys: ['ps', 'pd', 'dp', 'p52'] },
+  { id: 'press', t: 'Presión de succión y descarga', keys: ['ps', 'pd'] },
+  { id: 'dp', t: 'ΔP de la bomba', keys: ['dp'] },
+  { id: 'p52', t: 'Presión Plan 52 (fluido de barrera)', keys: ['p52'] },
   { id: 'vib', t: 'Vibraciones', keys: ['vp', 'vm'] },
   { id: 'temp', t: 'Temperatura de rodamiento', keys: ['temp'] },
   { id: 'amps', t: 'Corriente motor', keys: ['amps'] },

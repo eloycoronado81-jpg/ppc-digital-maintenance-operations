@@ -74,7 +74,7 @@ button.done::after { content: ' ✓'; }
 .workflow h3 { margin: 2px 0; }
 .steps { display: grid; grid-template-columns: repeat(7, 1fr); gap: 9px; margin-top: 15px; }
 .steps button { display: flex; gap: 8px; align-items: center; justify-content: center; }
-.steps span { display: inline-grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; background: #d6e3ec; }
+.steps span { flex: 0 0 25px; display: inline-grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; background: #d6e3ec; }
 .steps .passed span { background: #08643c; color: #fff; }
 .steps .locked { opacity: 0.55; }
 .steps .locked::after { content: '🔒'; font-size: 0.7rem; }
@@ -173,7 +173,8 @@ dialog td input, dialog td select { min-height: 38px; padding: 6px 8px; margin: 
 @media (max-width: 650px) { dialog .identity-grid.four { grid-template-columns: 1fr; } }
 
 /* Diagnóstico y desempeño */
-.steps { grid-template-columns: repeat(7, 1fr) auto; }
+.steps { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.steps button { padding: 10px 8px; font-size: 0.84rem; line-height: 1.15; }
 .steps .diag-step { background: #eef2ff; color: #3730a3; }
 .steps .diag-step.active { background: #3730a3; color: #fff; }
 .warn-box { border-left-color: #d97706; background: #fff8e6; color: #6b4b00; }
