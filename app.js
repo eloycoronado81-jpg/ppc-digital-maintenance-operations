@@ -123,7 +123,6 @@ const PARAMS = [
   { k: 'p52', t: 'Presión Plan 52', u: ['psig', 'barg', 'kPa'] },
   { k: 'l52', t: 'Nivel Plan 52', u: ['%', 'mm'] },
 ];
-const TREND_KEYS = [...PARAMS.map((p) => ({ k: p.k, t: p.t })), { k: 'dp', t: 'ΔP calculada' }];
 
 const STATUS_LABEL = {
   DRAFT: 'Borrador',
@@ -480,59 +479,171 @@ function renderLeak() {
     ? job.leakEvents.map((e) => `<div class="${e.result === 'FUGA' ? 'red' : e.result === 'CONFORME' ? 'green' : ''}"><b>${esc(fmt(e.at))}</b> · ${esc(LEAK_LABEL[e.result])} · ${esc(e.by)}${e.obs ? ' · ' + esc(e.obs) : ''}</div>`).join('')
     : '<i>Sin pruebas registradas.</i>';
 }
+/* ---------- Ficha de equipo y criterios por TAG ----------
+ * Los criterios solo se aplican si tienen fuente registrada (datasheet, manual, CBM, alarma/trip).
+ * La aplicación no trae límites por defecto. */
+const EQUIP_KEY = 'ppcEquipment';
+let equipment = (() => { try { return JSON.parse(localStorage.getItem(EQUIP_KEY) || '{}'); } catch (e) { return {}; } })();
+const eqOf = (tag) => equipment[tag] || { model: '', service: '', seal: '', motor: '', criteria: {} };
+const CRIT_KEYS = ['vp', 'vm', 'temp', 'amps', 'ps', 'pd', 'flow', 'p52', 'l52'];
+function evalParam(tag, k, v, u) {
+  const c = eqOf(tag).criteria[k];
+  if (!c || !c.source || v === null || v === undefined) return '';
+  if (c.unit && c.unit !== u) return 'U';
+  const n = num;
+  if ((n(c.xMax) !== null && v > n(c.xMax)) || (n(c.xMin) !== null && v < n(c.xMin))) return 'X';
+  if ((n(c.aMax) !== null && v > n(c.aMax)) || (n(c.aMin) !== null && v < n(c.aMin))) return 'A';
+  return [c.aMin, c.aMax, c.xMin, c.xMax].some((x) => n(x) !== null) ? 'N' : '';
+}
+const EVAL_LABEL = { N: 'Normal', A: 'Alerta', X: 'Acción', U: 'Unidad distinta al criterio', '': 'Sin criterio configurado' };
+const SERIES_COLOR = { ps: '#2563eb', pd: '#dc2626', dp: '#16a34a', flow: '#7c3aed', amps: '#ea580c', vp: '#0891b2', vm: '#9333ea', temp: '#b91c1c', p52: '#0d9488', l52: '#ca8a04' };
+const TREND_GROUPS = [
+  { id: 'press', t: 'Presiones y ΔP', keys: ['ps', 'pd', 'dp', 'p52'] },
+  { id: 'vib', t: 'Vibraciones', keys: ['vp', 'vm'] },
+  { id: 'temp', t: 'Temperatura de rodamiento', keys: ['temp'] },
+  { id: 'amps', t: 'Corriente motor', keys: ['amps'] },
+  { id: 'flow', t: 'Caudal', keys: ['flow'] },
+  { id: 'l52', t: 'Nivel Plan 52', keys: ['l52'] },
+];
+const labelOf = (k) => (k === 'dp' ? 'ΔP' : PARAMS.find((p) => p.k === k)?.t || k);
+
+function renderEquipSummary() {
+  const e = eqOf(job.tag);
+  const parts = [e.model && `Modelo: ${e.model}`, e.service && `Servicio: ${e.service}`, e.seal && `Sello: ${e.seal}`, e.motor && `Motor: ${e.motor}`].filter(Boolean);
+  const nCrit = Object.values(e.criteria || {}).filter((c) => c.source).length;
+  $('#equipSummary').innerHTML = (parts.length ? parts.map(esc).join(' · ') : '<i>Sin ficha de equipo configurada para este TAG.</i>')
+    + ` · <b>${nCrit}</b> criterio/s de aceptación con fuente`;
+}
+function openEquipDialog() {
+  const e = eqOf(job.tag);
+  $('#eqTag').textContent = job.tag;
+  ['model', 'service', 'seal', 'motor'].forEach((f) => ($(`#eq-${f}`).value = e[f] || ''));
+  $('#eqCriteria').innerHTML = `<table><thead><tr><th>Parámetro</th><th>Unidad</th><th>Alerta mín</th><th>Alerta máx</th><th>Acción mín</th><th>Acción máx</th><th>Fuente *</th></tr></thead><tbody>${CRIT_KEYS.map((k) => {
+    const p = PARAMS.find((x) => x.k === k), c = e.criteria?.[k] || {};
+    const inp = (f) => `<input data-crit="${k}" data-f="${f}" type="number" step="any" inputmode="decimal" value="${esc(c[f] ?? '')}">`;
+    return `<tr><td>${esc(p.t)}</td><td><select data-crit="${k}" data-f="unit" class="unit">${p.u.map((u) => `<option ${u === (c.unit || p.u[0]) ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></td><td>${inp('aMin')}</td><td>${inp('aMax')}</td><td>${inp('xMin')}</td><td>${inp('xMax')}</td><td><input data-crit="${k}" data-f="source" value="${esc(c.source || '')}" placeholder="Datasheet, manual, CBM, alarma/trip"></td></tr>`;
+  }).join('')}</tbody></table>`;
+  $('#eqError').textContent = '';
+  $('#equipDialog').showModal();
+}
+async function saveEquip(ev) {
+  ev.preventDefault();
+  if (!requireUser()) return;
+  const e = { model: $('#eq-model').value.trim(), service: $('#eq-service').value.trim(), seal: $('#eq-seal').value.trim(), motor: $('#eq-motor').value.trim(), criteria: {}, updatedAt: nowISO(), updatedBy: currentUser() };
+  const errs = [];
+  CRIT_KEYS.forEach((k) => {
+    const c = {};
+    $$(`[data-crit="${k}"]`).forEach((el) => (c[el.dataset.f] = el.value.trim()));
+    const hasLimit = ['aMin', 'aMax', 'xMin', 'xMax'].some((f) => num(c[f]) !== null);
+    if (hasLimit && !c.source) errs.push(labelOf(k));
+    if (num(c.aMax) !== null && num(c.xMax) !== null && num(c.xMax) < num(c.aMax)) errs.push(`${labelOf(k)} (acción máx menor que alerta máx)`);
+    if (hasLimit || c.source) e.criteria[k] = c;
+  });
+  if (errs.length) { $('#eqError').textContent = `Revise: ${errs.join(', ')}. Todo límite requiere fuente.`; return; }
+  equipment[job.tag] = e;
+  localStorage.setItem(EQUIP_KEY, JSON.stringify(equipment));
+  $('#equipDialog').close();
+  await commit('Ficha de equipo / criterios actualizados', `${job.tag} · ${Object.keys(e.criteria).length} criterio/s`);
+}
+
+function renderKpis(sel) {
+  const last = {};
+  job.measurements.forEach((m) => {
+    Object.entries(m.values).forEach(([k, v]) => (last[k] = { v, u: m.units[k], at: m.at, ev: m.eval?.[k] ?? evalParam(job.tag, k, v, m.units[k]) }));
+    if (m.dp !== null) last.dp = { v: m.dp, u: m.dpUnit, at: m.at, ev: '' };
+  });
+  const keys = ['ps', 'pd', 'dp', 'flow', 'amps', 'vp', 'vm', 'temp', 'p52', 'l52'];
+  $(sel).innerHTML = keys.map((k) => {
+    const x = last[k];
+    const cls = x ? { N: 'k-ok', A: 'k-alert', X: 'k-action', U: 'k-unit' }[x.ev] || '' : 'k-empty';
+    return `<div class="kpi ${cls}" style="--c:${SERIES_COLOR[k]}" title="${x ? esc(EVAL_LABEL[x.ev]) : 'Sin medición'}"><span>${esc(labelOf(k))}</span><b>${x ? esc(x.v) : '—'}</b><small>${x ? esc(x.u) + ' · ' + esc(fmtTime(x.at)) : 'sin dato'}</small></div>`;
+  }).join('');
+}
+
 function renderMeasureTable() {
   const rows = job.measurements;
   if (!rows.length) { $('#measureTable').innerHTML = '<i>Sin mediciones registradas.</i>'; return; }
   const head = ['Hora', 'Etapa', ...PARAMS.map((p) => p.t), 'ΔP', 'Sello', 'Ruido', 'Usuario'];
   const body = rows.map((m) => {
     const pdOut = m.values.pd !== undefined && outOfRef(m.values.pd, m.units.pd, dischargeRef());
-    const cells = PARAMS.map((p) => (m.values[p.k] !== undefined ? `${m.values[p.k]} ${esc(m.units[p.k])}${p.k === 'pd' && pdOut ? ' ⚠' : ''}` : ''));
-    const alert = m.seal === 'FUGA' || m.noise === 'ANORMAL' || pdOut;
-    return `<tr class="${alert ? 'row-alert' : ''}"><td>${esc(fmtTime(m.at))}</td><td>${m.stage === 'ARRANQUE' ? 'Arranque' : 'Estab.'}</td>${cells.map((c) => `<td>${c}</td>`).join('')}<td>${m.dp !== null ? `${m.dp} ${esc(m.dpUnit)}` : ''}</td><td>${m.seal === 'FUGA' ? 'Fuga' : m.seal === 'SIN_FUGA' ? 'OK' : ''}</td><td>${m.noise === 'ANORMAL' ? 'Anormal' : m.noise === 'NORMAL' ? 'Normal' : ''}</td><td>${esc(m.by)}</td></tr>`;
+    const evs = m.eval || {};
+    const cells = PARAMS.map((p) => {
+      if (m.values[p.k] === undefined) return '<td></td>';
+      const ev = evs[p.k] ?? '';
+      const cls = { A: 'c-alert', X: 'c-action' }[ev] || '';
+      return `<td class="${cls}" title="${esc(EVAL_LABEL[ev])}">${m.values[p.k]} ${esc(m.units[p.k])}${p.k === 'pd' && pdOut ? ' ⚠' : ''}</td>`;
+    });
+    const alert = m.seal === 'FUGA' || m.noise === 'ANORMAL' || pdOut || Object.values(evs).includes('X');
+    return `<tr class="${alert ? 'row-alert' : ''}"><td>${esc(fmtTime(m.at))}</td><td>${m.stage === 'ARRANQUE' ? 'Arranque' : 'Estab.'}</td>${cells.join('')}<td>${m.dp !== null ? `${m.dp} ${esc(m.dpUnit)}` : ''}</td><td>${m.seal === 'FUGA' ? 'Fuga' : m.seal === 'SIN_FUGA' ? 'OK' : ''}</td><td>${m.noise === 'ANORMAL' ? 'Anormal' : m.noise === 'NORMAL' ? 'Normal' : ''}</td><td>${esc(m.by)}</td></tr>`;
   }).join('');
   $('#measureTable').innerHTML = `<table><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
-function renderTrend() {
-  const k = $('#trendParam').value || 'ps';
-  const pts = job.measurements.filter((m) => (k === 'dp' ? m.dp !== null : m.values[k] !== undefined))
-    .map((m) => ({ t: new Date(m.at).getTime(), v: k === 'dp' ? m.dp : m.values[k], u: k === 'dp' ? m.dpUnit : m.units[k] }));
-  const events = [
-    ...['COOL_START', 'COOL_END', 'PURGE', 'START'].map((c) => milestone(c)).filter(Boolean).map((m) => ({ t: new Date(m.at).getTime(), label: { COOL_START: 'Inicio enfr.', COOL_END: 'Fin enfr.', PURGE: 'Purga', START: 'Arranque' }[m.code] })),
-    ...job.leakEvents.filter((e) => e.result === 'CONFORME').slice(-1).map((e) => ({ t: new Date(e.at).getTime(), label: 'Leak Test' })),
-    ...(job.startAuth ? [{ t: new Date(job.startAuth.at).getTime(), label: 'Habilitación' }] : []),
+/* Fases del arranque derivadas de los hitos registrados. */
+function phases() {
+  const T = (iso) => (iso ? new Date(iso).getTime() : null);
+  const leakOk = job.leakEvents.filter((e) => e.result === 'CONFORME').at(-1);
+  const firstStab = job.measurements.find((m) => m.stage === 'ESTABILIZACION');
+  const pts = [
+    ['Enfriamiento', T(milestone('COOL_START')?.at), T(milestone('COOL_END')?.at)],
+    ['Purga', T(milestone('COOL_END')?.at), T(milestone('PURGE')?.at)],
+    ['Leak Test', T(milestone('PURGE')?.at || releaseAt()), T(leakOk?.at)],
+    ['Habilitación', T(leakOk?.at), T(milestone('START')?.at)],
+    ['Arranque', T(milestone('START')?.at), T(firstStab?.at)],
+    ['Estabilización', T(firstStab?.at), T(job.closure?.at) || Date.now()],
   ];
-  if (!pts.length) {
-    $('#trend').innerHTML = '<div class="empty-chart">Sin datos para esta variable.<br><small>Registre mediciones para construir la tendencia.</small></div>';
+  return pts.filter(([, a, b]) => a !== null && b !== null && b > a).map(([label, a, b]) => ({ label, a, b }));
+}
+const BAND_COLOR = { Enfriamiento: '#dbeafe', Purga: '#dcfce7', 'Leak Test': '#fef3c7', 'Habilitación': '#ede9fe', Arranque: '#fee2e2', 'Estabilización': '#d1fae5' };
+
+function renderTrend() {
+  const g = TREND_GROUPS.find((x) => x.id === $('#trendGroup').value) || TREND_GROUPS[0];
+  const series = g.keys.map((k) => {
+    const raw = job.measurements.filter((m) => (k === 'dp' ? m.dp !== null : m.values[k] !== undefined))
+      .map((m) => ({ t: new Date(m.at).getTime(), v: k === 'dp' ? m.dp : m.values[k], u: k === 'dp' ? m.dpUnit : m.units[k] }));
+    return { k, raw };
+  }).filter((s) => s.raw.length);
+  if (!series.length) {
+    $('#trend').innerHTML = '<div class="empty-chart">Sin datos para este grupo.<br><small>Registre mediciones para construir la tendencia.</small></div>';
     return;
   }
-  const unit = pts.at(-1).u;
-  const same = pts.filter((p) => p.u === unit);
-  const W = 760, H = 300, L = 56, R = 16, T = 48, B = 36;
-  const ts = [...same.map((p) => p.t), ...events.map((e) => e.t)];
+  // Una sola unidad por gráfico: la de la medición más reciente del grupo.
+  const unit = series.flatMap((s) => s.raw).sort((a, b) => a.t - b.t).at(-1).u;
+  series.forEach((s) => (s.pts = s.raw.filter((p) => p.u === unit)));
+  const omitted = series.reduce((n, s) => n + s.raw.length - s.pts.length, 0);
+  const shown = series.filter((s) => s.pts.length);
+  const bands = phases();
+  const crit = shown.map((s) => ({ k: s.k, c: eqOf(job.tag).criteria?.[s.k] })).filter((x) => x.c?.source && (!x.c.unit || x.c.unit === unit));
+  const W = 760, H = 320, L = 56, R = 16, T = 30, B = 36;
+  const all = shown.flatMap((s) => s.pts);
+  const ts = [...all.map((p) => p.t), ...bands.flatMap((b) => [b.a, b.b])];
   let t0 = Math.min(...ts), t1 = Math.max(...ts);
   if (t1 - t0 < 60000) { t0 -= 30000; t1 += 30000; }
-  let v0 = Math.min(...same.map((p) => p.v)), v1 = Math.max(...same.map((p) => p.v));
+  const limVals = crit.flatMap((x) => ['aMax', 'xMax', 'aMin', 'xMin'].map((f) => num(x.c[f])).filter((v) => v !== null));
+  let v0 = Math.min(...all.map((p) => p.v), ...limVals), v1 = Math.max(...all.map((p) => p.v), ...limVals);
   if (v1 === v0) { v0 -= Math.abs(v0) * 0.1 || 1; v1 += Math.abs(v1) * 0.1 || 1; }
-  const pad = (v1 - v0) * 0.1; v0 -= pad; v1 += pad;
+  const pad = (v1 - v0) * 0.08; v0 -= pad; v1 += pad;
   const x = (t) => L + ((t - t0) / (t1 - t0)) * (W - L - R);
   const y = (v) => T + (1 - (v - v0) / (v1 - v0)) * (H - T - B);
+  const bandSvg = bands.map((b) => {
+    const xa = x(b.a), xb = x(b.b), w = Math.max(1, xb - xa);
+    const lbl = w > b.label.length * 6.2 ? `<text x="${xa + w / 2}" y="${T - 10}" text-anchor="middle" class="bandlabel">${esc(b.label)}</text>` : '';
+    return `<rect x="${xa}" y="${T}" width="${w}" height="${H - T - B}" fill="${BAND_COLOR[b.label]}" opacity=".7"><title>${esc(b.label)}</title></rect>${lbl}`;
+  }).join('');
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => v0 + f * (v1 - v0));
   const grid = ticks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="grid"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" class="axis">${+v.toPrecision(4)}</text>`).join('');
-  // Etiquetas en hasta 3 filas para que no se superpongan eventos cercanos.
-  const rows = [-1e9, -1e9, -1e9];
-  const ev = events.sort((a, b) => a.t - b.t).map((e) => {
-    const px = x(e.t);
-    let r = rows.findIndex((end) => px > end + 4);
-    if (r < 0) r = rows.indexOf(Math.min(...rows));
-    rows[r] = px + e.label.length * 6;
-    return `<line x1="${px}" x2="${px}" y1="${T + 14}" y2="${H - B}" class="event"/><text x="${px + 3}" y="${T - 14 + r * 12}" class="evlabel">${esc(e.label)}</text>`;
+  const lim = crit.flatMap(({ k, c }) => [['aMax', 'Alerta'], ['xMax', 'Acción'], ['aMin', 'Alerta mín'], ['xMin', 'Acción mín']]
+    .filter(([f]) => num(c[f]) !== null)
+    .map(([f, t]) => `<line x1="${L}" x2="${W - R}" y1="${y(num(c[f]))}" y2="${y(num(c[f]))}" class="${f[0] === 'x' ? 'lim-x' : 'lim-a'}"/><text x="${W - R - 2}" y="${y(num(c[f])) - 3}" text-anchor="end" class="limlabel">${esc(t)} ${esc(labelOf(k))} ${num(c[f])}</text>`)).join('');
+  const lines = shown.map((s) => {
+    const d = s.pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
+    const dots = s.pts.map((p) => `<circle cx="${x(p.t)}" cy="${y(p.v)}" r="3.5" fill="${SERIES_COLOR[s.k]}" class="dot"><title>${esc(labelOf(s.k))} · ${esc(fmt(new Date(p.t).toISOString()))}: ${p.v} ${esc(p.u)}</title></circle>`).join('');
+    return `<path d="${d}" stroke="${SERIES_COLOR[s.k]}" class="line"/>${dots}`;
   }).join('');
-  const path = same.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
-  const dots = same.map((p) => `<circle cx="${x(p.t)}" cy="${y(p.v)}" r="4" class="dot"><title>${esc(fmt(new Date(p.t).toISOString()))}: ${p.v} ${esc(p.u)}</title></circle>`).join('');
   const xl = `<text x="${L}" y="${H - 10}" class="axis">${esc(fmtTime(new Date(t0).toISOString()))}</text><text x="${W - R}" y="${H - 10}" text-anchor="end" class="axis">${esc(fmtTime(new Date(t1).toISOString()))}</text>`;
-  const note = same.length < pts.length ? `<p class="muted">Se muestran solo los puntos en ${esc(unit)}; ${pts.length - same.length} punto/s en otra unidad omitidos.</p>` : '';
-  $('#trend').innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Tendencia">${grid}${ev}<path d="${path}" class="line"/>${dots}${xl}<text x="${L}" y="14" class="axis">${esc(unit)}</text></svg>${note}`;
+  const legend = `<div class="legend">${shown.map((s) => `<span><i style="background:${SERIES_COLOR[s.k]}"></i>${esc(labelOf(s.k))}</span>`).join('')}${crit.length ? '<span><i class="lg-a"></i>Alerta</span><span><i class="lg-x"></i>Acción</span>' : '<span class="muted">Sin criterios con fuente para este grupo</span>'}</div>`;
+  const note = omitted ? `<p class="muted">Se grafican solo los puntos en ${esc(unit)}; ${omitted} punto/s en otra unidad omitidos.</p>` : '';
+  $('#trend').innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Tendencia ${esc(g.t)}">${bandSvg}${grid}${lim}${lines}${xl}<text x="${L}" y="${T + 12}" class="axis">${esc(unit)}</text></svg>${legend}${note}`;
 }
 
 function renderLog() {
@@ -637,6 +748,9 @@ function render() {
   updateDp('s');
 
   // Etapa 7
+  renderEquipSummary();
+  renderKpis('#kpiStart');
+  renderKpis('#kpiStab');
   renderMeasureTable();
   renderTrend();
   if (job.closure) {
@@ -957,16 +1071,23 @@ $$('[data-save-measure]').forEach((b) => {
     if (!Object.keys(values).length) return flash('Ingrese al menos un parámetro.', 'warn');
     let dp = null, dpUnit = '';
     if (values.ps !== undefined && values.pd !== undefined && units.ps === units.pd) { dp = +(values.pd - values.ps).toFixed(3); dpUnit = units.pd; }
-    const rec = { id: uuid(), at: nowISO(), by: currentUser(), stage, values, units, dp, dpUnit, seal: $(`#${pre}-seal`).value, noise: $(`#${pre}-noise`).value, obs: $(`#${pre}-obs`).value.trim() };
+    const evalAt = Object.fromEntries(Object.keys(values).map((k) => [k, evalParam(job.tag, k, values[k], units[k])]));
+    const rec = { id: uuid(), at: nowISO(), by: currentUser(), stage, values, units, eval: evalAt, criteriaRef: Object.fromEntries(Object.keys(values).map((k) => [k, eqOf(job.tag).criteria?.[k]?.source || ''])), dp, dpUnit, seal: $(`#${pre}-seal`).value, noise: $(`#${pre}-noise`).value, obs: $(`#${pre}-obs`).value.trim() };
     job.measurements.push(rec);
     PARAMS.forEach((p) => ($(`#${pre}-${p.k}`).value = ''));
     [`#${pre}-seal`, `#${pre}-noise`, `#${pre}-obs`].forEach((s) => ($(s).value = ''));
     await commit(`Medición (${stage === 'ARRANQUE' ? 'arranque' : 'estabilización'})`, Object.entries(values).map(([k, v]) => `${k}=${v} ${units[k]}`).join(', ') + (dp !== null ? `, ΔP=${dp} ${dpUnit}` : ''));
-    if (rec.seal === 'FUGA' || rec.noise === 'ANORMAL') flash('Medición con condición anormal registrada: evaluar antes de declarar el equipo estable.', 'bad');
+    const nX = Object.values(evalAt).filter((v) => v === 'X').length;
+    const nA = Object.values(evalAt).filter((v) => v === 'A').length;
+    if (nX) flash(`Medición en nivel de ACCIÓN según criterio configurado (${Object.entries(evalAt).filter(([, v]) => v === 'X').map(([k]) => labelOf(k)).join(', ')}).`, 'bad');
+    else if (nA) flash(`Medición en nivel de ALERTA (${Object.entries(evalAt).filter(([, v]) => v === 'A').map(([k]) => labelOf(k)).join(', ')}).`, 'warn');
+    else if (rec.seal === 'FUGA' || rec.noise === 'ANORMAL') flash('Medición con condición anormal registrada: evaluar antes de declarar el equipo estable.', 'bad');
   };
 });
-$('#trendParam').innerHTML = TREND_KEYS.map((p) => `<option value="${p.k}">${esc(p.t)}</option>`).join('');
-$('#trendParam').onchange = () => job && renderTrend();
+$('#trendGroup').innerHTML = TREND_GROUPS.map((g) => `<option value="${g.id}">${esc(g.t)}</option>`).join('');
+$('#trendGroup').onchange = () => job && renderTrend();
+$('#editEquip').onclick = () => job && openEquipDialog();
+$('#eqSave').onclick = saveEquip;
 
 // Cierre
 $('#closeJob').onclick = async () => {
@@ -982,6 +1103,7 @@ $('#closeJob').onclick = async () => {
   if (result === 'REQUIERE_EVALUACION' && !obs) missing.push('observación de cierre');
   const last = job.measurements.at(-1);
   if (result === 'ESTABLE' && last && (last.seal === 'FUGA' || last.noise === 'ANORMAL')) missing.push('la última medición reporta fuga o ruido anormal: no puede declararse ESTABLE');
+  if (result === 'ESTABLE' && last && Object.values(last.eval || {}).includes('X')) missing.push('la última medición está en nivel de ACCIÓN: no puede declararse ESTABLE');
   if (missing.length) {
     $('#closeMsg').innerHTML = `<b class="red">No se puede cerrar · Falta: ${esc(missing.join(', '))}</b>`;
     return;
@@ -1022,6 +1144,7 @@ function buildReport() {
     <p>${job.maintenanceRelease ? `Liberado ${esc(fmt(job.maintenanceRelease.at))} por ${esc(job.maintenanceRelease.by)}` : 'Sin liberación vigente'} · Observación: ${esc(job.maintenanceObs)}</p>
     <h2>Preparación de Operaciones</h2><table>${chk('o')}</table>
     <h2>Plan 52</h2>${job.plan52.applicable ? `<table>${chk('p')}</table><p>Presión inicial: ${esc(job.plan52.pressure)} ${esc(job.plan52.pressureUnit)} · Nivel inicial: ${esc(job.plan52.level)} ${esc(job.plan52.levelUnit)} · Stand-by: ${esc($('#sbResult').selectedOptions[0]?.text || '')}</p>` : `<p>No aplica: ${esc(job.plan52.justification)}</p>`}
+    <p>Equipo: ${esc([eqOf(job.tag).model, eqOf(job.tag).service, eqOf(job.tag).seal, eqOf(job.tag).motor].filter(Boolean).join(' · ') || 'sin ficha')} · Criterios: ${esc(Object.entries(eqOf(job.tag).criteria || {}).filter(([, c]) => c.source).map(([k, c]) => `${labelOf(k)} [A ${c.aMin || ''}–${c.aMax || ''} / X ${c.xMin || ''}–${c.xMax || ''} ${c.unit}; ${c.source}]`).join(' · ') || 'ninguno')}</p>
     <p>Procedimiento de referencia: ${esc(PROC.code)} v${esc(PROC.version)} · ${esc(PROC.title)} · Protocolo de torque: ${esc(job.torqueRef)}</p>
     <h2>Enfriamiento / purgas (Pasos 2–3)</h2><p>Condición inicial: ${esc(job.cooling.initial === 'ADECUADO' ? 'Enfriamiento adecuado' : job.cooling.initial === 'NO_ADECUADO' ? 'Enfriamiento no adecuado: purga ejecutada' : 'No declarada')}</p><table>${chk('c')}</table>
     <h2>Hitos</h2>${$('#milestoneList').innerHTML}

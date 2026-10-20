@@ -72,6 +72,7 @@
             <label>PSSR *<input id="pssr" placeholder="Obligatorio para arrancar"></label>
           </div>
         </fieldset>
+        <div class="equip-strip"><span id="equipSummary"></span><button type="button" id="editEquip">Ficha del equipo y criterios</button></div>
       </section>
 
       <section class="card workflow">
@@ -262,6 +263,7 @@
           </fieldset>
           <p id="startResult"></p>
           <h3>Parámetros durante el arranque</h3>
+          <div id="kpiStart" class="kpis"></div>
           <fieldset data-fs="m5">
             <div id="paramsStart" class="params"></div>
             <button type="button" class="primary" data-save-measure="ARRANQUE">Registrar medición</button>
@@ -276,13 +278,14 @@
         <div class="grid even">
           <article class="card">
             <h2>📈 Estabilización</h2>
+            <div id="kpiStab" class="kpis"></div>
             <fieldset data-fs="m6">
               <div id="paramsStab" class="params"></div>
               <button type="button" class="primary" data-save-measure="ESTABILIZACION">Registrar medición de estabilización</button>
             </fieldset>
             <div class="chart-head">
               <h3>Tendencia</h3>
-              <select id="trendParam" class="unit"></select>
+              <select id="trendGroup" class="unit"></select>
             </div>
             <div id="trend" class="chart"></div>
             <div id="measureTable" class="table-wrap"></div>
@@ -329,6 +332,26 @@
       <div class="big-actions">
         <button value="cancel" formnovalidate>Cancelar</button>
         <button id="tagConfirm" value="ok" class="primary">Agregar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="equipDialog" class="wide">
+    <form method="dialog">
+      <h3>Ficha del equipo · <span id="eqTag"></span></h3>
+      <div class="identity-grid four">
+        <label>Modelo<input id="eq-model" placeholder="Ej. API 610 OH2"></label>
+        <label>Servicio<input id="eq-service" placeholder="Ej. Reflujo desetanizadora"></label>
+        <label>Sello / API Plan<input id="eq-seal" placeholder="Ej. Dual · Plan 52"></label>
+        <label>Motor<input id="eq-motor" placeholder="Ej. 250 kW · 4 polos"></label>
+      </div>
+      <h3 class="mt">Criterios de aceptación</h3>
+      <p class="muted">Ingrese solo límites de fuentes aprobadas (datasheet, manual del fabricante, CBM, alarmas/trips). Un criterio sin fuente no se aplica. La aplicación no trae límites por defecto.</p>
+      <div id="eqCriteria" class="table-wrap"></div>
+      <p id="eqError" class="red"></p>
+      <div class="big-actions">
+        <button value="cancel" formnovalidate>Cancelar</button>
+        <button id="eqSave" value="ok" class="primary">Guardar ficha</button>
       </div>
     </form>
   </dialog>

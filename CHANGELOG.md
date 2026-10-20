@@ -24,9 +24,16 @@
 - Enfriamiento: si la bomba en S/B no está adecuadamente fría, la purga a COLD FLARE y sus hitos son obligatorios; si está adecuada, las purgas admiten N/A.
 - Referencias del procedimiento mostradas como guía y advertencia (no bloquean): descarga ≈400–450 psig en CRIO 3–4 y ≈400 psig en CRIO 5; tanque de líquido de barrera 0–5 psig; reposición de propanol hasta 70% del visor.
 
+### Ficha de equipo, criterios y tendencias (basado en el diseño AFTON V3.0)
+- Ficha del equipo por TAG: modelo, servicio, sello/API Plan y motor.
+- Criterios de aceptación configurables por TAG (alerta y acción, mín/máx, unidad) con fuente obligatoria; sin fuente no se aplican. No hay límites por defecto.
+- Cada medición se evalúa al registrarse (Normal / Alerta / Acción) y guarda la fuente del criterio usado.
+- Indicadores del último valor por parámetro, coloreados según el criterio.
+- Tendencia multivariable por grupo compatible (presiones, vibraciones, temperatura, corriente, caudal, nivel Plan 52) con bandas por fase y líneas de alerta/acción.
+- No se puede cerrar como ESTABLE si la última medición está en nivel de acción.
+
 ### Mediciones
 - Mediciones estructuradas con unidad por parámetro, ΔP calculado, condición de sello y ruido.
-- Tendencia gráfica por variable con marcadores de hitos.
 
 ### PWA y seguridad
 - Service worker versionado con estrategia red-primero y limpieza de cachés antiguos: las tablets reciben la versión publicada.
