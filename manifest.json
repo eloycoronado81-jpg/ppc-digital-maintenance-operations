@@ -1,1 +1,17 @@
-{"name":"PPC Digital Maintenance & Operations","short_name":"PPC Digital","start_url":"./","display":"standalone","background_color":"#eef3f7","theme_color":"#073b66","icons":[]}
+{
+  "name": "PPC Digital Maintenance & Operations",
+  "short_name": "PPC Digital",
+  "description": "Lista de verificación de arranque de bombas de reflujo con trazabilidad por TAG",
+  "lang": "es-PE",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#eef3f7",
+  "theme_color": "#073b66",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
