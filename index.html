@@ -13,7 +13,7 @@
 <body class="no-job">
   <header>
     <div>
-      <small>PPC DIGITAL · AFTON · V0.4 PILOTO</small>
+      <small>PPC DIGITAL · AFTON · V0.5 PILOTO</small>
       <h1>Lista de Verificación – Proceso de Arranque de Bomba de Reflujo</h1>
       <p>Mantenimiento · QA/QC · Operaciones · Trazabilidad por TAG</p>
     </div>
@@ -58,7 +58,7 @@
               <div class="inline"><select id="tag"></select><button type="button" id="addTag">+ Equipo</button></div>
             </label>
             <label>Área / CRIO
-              <select id="area"><option value="">Seleccione</option><option>CRIO 3</option><option>CRIO 4</option><option>CRIO 5</option></select>
+              <select id="area"><option value="">Seleccione</option><option>CRIO 1</option><option>CRIO 2</option><option>CRIO 3</option><option>CRIO 4</option><option>CRIO 5</option></select>
             </label>
             <label>Motivo
               <select id="reason">
@@ -91,6 +91,7 @@
           <button type="button" data-stage="4"><span>5</span>Leak Test</button>
           <button type="button" data-stage="5"><span>6</span>Arranque</button>
           <button type="button" data-stage="6"><span>7</span>Estabilización</button>
+          <button type="button" data-stage="7" class="diag-step"><span>🩺</span>Diagnóstico</button>
         </div>
         <div id="blockers" class="blockers"></div>
       </section>
@@ -104,7 +105,11 @@
             <p class="lead">Verifique la condición mecánica antes de entregar el equipo a Operaciones.</p>
             <fieldset data-fs="0">
               <div id="maintenanceChecklist" class="checklist"></div>
-              <label>Referencia protocolo de torque * <small class="muted">(N.° FORM-TORQ-001 / OT, o “No aplica” si no se intervinieron juntas)</small><input id="torqueRef" placeholder="Ej. FORM-TORQ-001 · OT 10003378"></label>
+              <h3 class="mt">Uniones bridadas · protocolo de torque</h3>
+              <div id="jointsBox"></div>
+              <label id="torqueRefWrap">Referencia protocolo de torque * <small class="muted">(N.° FORM-TORQ-001 / OT, o “No aplica” si no se intervinieron juntas)</small><input id="torqueRef" placeholder="Ej. FORM-TORQ-001 · OT 10003378"></label>
+              <p class="ref"><small id="torqueRefText"></small></p>
+              <div id="mechBox"></div>
               <label>Observación de Mantenimiento<textarea id="maintenanceObs" rows="2" placeholder="Obligatoria si algún punto queda NO OK"></textarea></label>
               <button type="button" id="releaseMaintenance" class="primary">Liberar Mantenimiento</button>
             </fieldset>
@@ -133,6 +138,7 @@
         <article class="card">
           <h2>🏭 Preparación de Operaciones</h2>
           <p class="lead">Verificaciones previas a maniobras de enfriamiento, cebado y arranque.</p>
+          <p class="pop-scope notice warn-box hidden"></p>
           <p id="releaseReceived" class="notice"></p>
           <fieldset data-fs="1">
             <div id="operationsChecklist" class="checklist"></div>
@@ -198,6 +204,7 @@
         <article class="card">
           <h2>❄️ Enfriamiento / Cebado (Pasos 2–3)</h2>
           <p class="ref">📘 <span class="proc-code"></span> · Rotación de bombas de reflujo</p>
+          <p class="pop-scope notice warn-box hidden"></p>
           <fieldset data-fs="3">
             <label>Paso 2 · Condición de enfriamiento de la bomba en S/B *
               <select id="coolInitial">
@@ -254,6 +261,8 @@
         <article class="card">
           <h2>▶ Autorización y arranque (Pasos 4–7)</h2>
           <p class="ref">📘 <span class="proc-code"></span><br><span id="refDischarge"></span></p>
+          <p class="pop-scope notice warn-box hidden"></p>
+          <div id="discStart" class="notice warn-box"></div>
           <fieldset data-fs="5">
             <div id="preStartChecklist" class="checklist"></div>
             <div class="big-actions">
@@ -316,6 +325,48 @@
         </div>
       </section>
 
+      <!-- Diagnóstico y desempeño (siempre disponible) -->
+      <section class="stage" data-panel="7">
+        <div class="grid even">
+          <article class="card">
+            <h2>📊 Desempeño hidráulico</h2>
+            <p class="lead">Punto de operación sobre la curva certificada del fabricante, a partir de la última medición con succión y descarga.</p>
+            <div class="two">
+              <label>SG para el cálculo<input id="hySg" type="number" step="any" inputmode="decimal"></label>
+              <label>NPSH disponible (pies)<input id="hyNpsha" type="number" step="any" inputmode="decimal"></label>
+              <label>Presión de vapor (psig)<input id="hyPv" type="number" step="any" inputmode="decimal"></label>
+              <label>Presión en la cavidad de sellado (psig)<input id="hyPc" type="number" step="any" inputmode="decimal" placeholder="Medida en campo"></label>
+            </div>
+            <div id="curveChart" class="chart"></div>
+            <div id="npshChart" class="chart"></div>
+            <p id="hydNote" class="notice warn-box"></p>
+            <div id="hydResults" class="table-wrap"></div>
+          </article>
+          <article class="card">
+            <h2>🩺 Diagnóstico de fallas</h2>
+            <p class="lead">Diagnóstico por reglas, trazable a los documentos. Sugiere causas y verificaciones; la conclusión la registra el responsable.</p>
+            <h3>Hallazgos automáticos</h3>
+            <div id="diagFindings" class="findings"></div>
+            <h3 class="mt">Síntomas de la bomba <small class="muted">(IOM pág. 33)</small></h3>
+            <div id="diagHiSyms" class="syms"></div>
+            <h3 class="mt">Síntomas del sistema de sello</h3>
+            <div id="diagSealSyms" class="syms"></div>
+            <label class="toggle mt"><input type="checkbox" id="diagShowNa"> Mostrar causas de válvula de pie y empaquetadura</label>
+            <h3 class="mt">Causas posibles de la bomba</h3>
+            <div id="diagHiCauses" class="table-wrap"></div>
+            <h3 class="mt">Sistema de sello</h3>
+            <div id="diagSealOut"></div>
+            <label class="mt">Conclusión / acción definida<textarea id="diagObs" rows="2" placeholder="Causa confirmada, acción, OT o aviso"></textarea></label>
+            <button type="button" id="saveDiag" class="primary">Registrar diagnóstico en el expediente</button>
+            <div id="diagHistory" class="timeline"></div>
+          </article>
+        </div>
+        <article class="card">
+          <h2>📘 Datos técnicos del equipo</h2>
+          <div id="equipData" class="table-wrap"></div>
+        </article>
+      </section>
+
       <nav class="stage-nav">
         <button type="button" id="prevStage">← Anterior</button>
         <div><b id="stageCounter">Etapa 1 de 7</b><small>Cada cambio se guarda automáticamente en el dispositivo</small></div>
@@ -359,6 +410,8 @@
   <section id="report" class="report" aria-hidden="true"></section>
 
   <footer>PPC Digital · Afton <span id="appVersion"></span> · Piloto de validación · No controla físicamente equipos ni sustituye procedimientos vigentes</footer>
+  <script src="library.js"></script>
   <script src="app.js"></script>
+  <script src="diagnosis.js"></script>
 </body>
 </html>

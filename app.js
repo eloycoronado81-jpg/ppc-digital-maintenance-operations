@@ -4,7 +4,7 @@
  * bloqueo de fuga con resolución, mediciones estructuradas y tendencia.
  * La aplicación guía y registra; no acciona físicamente equipos. */
 
-const APP_VERSION = 'V0.4.0';
+const APP_VERSION = 'V0.5.0';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -16,7 +16,7 @@ const num = (v) => (v === '' || v === null || v === undefined || Number.isNaN(Nu
 
 /* ---------- Configuración ---------- */
 const DEFAULT_TAGS = ['PAY-14425', 'PAY-14210', 'PAY-4210', 'PAY-4220', 'PAY-4410', 'PAY-4420'];
-const TITLES = ['1. Liberación de Mantenimiento', '2. Preparación de Operaciones', '3. Sistema de sello / API Plan 52', '4. Enfriamiento / Cebado', '5. Leak Test', '6. Autorización y Arranque', '7. Estabilización'];
+const TITLES = ['1. Liberación de Mantenimiento', '2. Preparación de Operaciones', '3. Sistema de sello / API Plan 52', '4. Enfriamiento / Cebado', '5. Leak Test', '6. Autorización y Arranque', '7. Estabilización', 'Diagnóstico y desempeño'];
 
 const CHECKS = {
   m: [
@@ -213,13 +213,18 @@ function blankJob() {
     createdBy: currentUser(),
     updatedAt: nowISO(),
     tag: $('#tag').value || tags[0],
-    area: '',
+    area: areaFor($('#tag').value || tags[0]),
     reason: $('#reason').options[0].text,
     ot: '',
     pssr: '',
     people: { maint: '', qa: '', operator: '', ops: '' },
     checks: { m: {}, o: {}, p: {}, c: {}, sa: {}, sb: {} },
     torqueRef: '',
+    joints: {},
+    mech: {},
+    hyd: {},
+    diagSel: [],
+    diagnoses: [],
     cooling: { initial: '' },
     maintenanceObs: '',
     maintenanceRelease: null,
@@ -245,7 +250,7 @@ function normalize(j) {
 }
 function blankJobShape() {
   return {
-    checks: { m: {}, o: {}, p: {}, c: {}, sa: {}, sb: {} }, torqueRef: '', cooling: { initial: '' }, releaseHistory: [],
+    checks: { m: {}, o: {}, p: {}, c: {}, sa: {}, sb: {} }, torqueRef: '', joints: {}, mech: {}, hyd: {}, diagSel: [], diagnoses: [], cooling: { initial: '' }, releaseHistory: [],
     units: Object.fromEntries(PARAMS.map((p) => [p.k, p.u[0]])), leakEvents: [], milestones: [], measurements: [], audit: [],
   };
 }
@@ -291,6 +296,8 @@ function criticalBlockers() {
     checkState('sa').criticalNo.forEach((t) => out.push(`Pre-arranque NO OK: ${t}`));
     checkState('sb').criticalNo.forEach((t) => out.push(`Post-arranque NO OK: ${t}`));
   }
+  jointState().blockers.forEach((t) => out.push(t));
+  mechState().blockers.forEach((t) => out.push(`Medición mecánica fuera de límite: ${t}`));
   if (job.plan52.applicable && job.plan52.standby.result === 'CONSUMO') out.push('Consumo de buffer detectado en stand-by');
   if (lastLeak()?.result === 'FUGA') out.push('Leak Test NO CONFORME sin resolución');
   return out;
@@ -484,7 +491,11 @@ function renderLeak() {
  * La aplicación no trae límites por defecto. */
 const EQUIP_KEY = 'ppcEquipment';
 let equipment = (() => { try { return JSON.parse(localStorage.getItem(EQUIP_KEY) || '{}'); } catch (e) { return {}; } })();
-const eqOf = (tag) => equipment[tag] || { model: '', service: '', seal: '', motor: '', criteria: {} };
+const eqOf = (tag) => {
+  const lib = typeof libOf === 'function' ? libOf(tag) : null;
+  const u = equipment[tag] || {};
+  return { model: u.model || lib?.model || '', service: u.service || lib?.service || '', seal: u.seal || lib?.seal || '', motor: u.motor || lib?.motor || '', criteria: u.criteria || {} };
+};
 const CRIT_KEYS = ['vp', 'vm', 'temp', 'amps', 'ps', 'pd', 'flow', 'p52', 'l52'];
 function evalParam(tag, k, v, u) {
   const c = eqOf(tag).criteria[k];
@@ -693,6 +704,14 @@ function render() {
 
   // Etapa 1
   renderChecklist('#maintenanceChecklist', 'm', isClosed || released());
+  renderJointsMech();
+  const popScope = ['CRIO 1', 'CRIO 2'].includes(job.area);
+  $$('.pop-scope').forEach((e) => {
+    e.textContent = popScope ? `⚠ ${PROC.code} cubre Criogénica 3, 4 y 5. Para ${job.area}, los pasos se muestran como guía: confirme contra el procedimiento vigente de esta área.` : '';
+    e.classList.toggle('hidden', !popScope);
+  });
+  const dz = DISCREPANCIES.dischargeAtStart;
+  $('#discStart').innerHTML = `<b>⚠ ${esc(dz.t)}: las fuentes no coinciden</b><ul>${dz.items.map(([a, b]) => `<li><b>${esc(a)}:</b> ${esc(b)}</li>`).join('')}</ul><small>${esc(dz.note)}</small>`;
   const rel = job.maintenanceRelease;
   $('#maintenanceResult').innerHTML = !rel && gateMsg.m ? gateMsg.m : rel
     ? `<b class="green">MANTENIMIENTO LIBERADO · ${esc(fmt(rel.at))} · ${esc(rel.by)} (Sup.: ${esc(rel.supervisor)} · QA/QC: ${esc(rel.qa)})</b>`
@@ -761,6 +780,7 @@ function render() {
     $('#closeMsg').innerHTML = '';
   }
   renderLog();
+  if (currentStage === 7) renderDiagStage();
 
   // Bloqueo por etapa
   const stageLocked = [released(), lockedAfterStart, lockedAfterStart, lockedAfterStart, lockedAfterStart, false, false];
@@ -782,8 +802,8 @@ function render() {
   $$('[data-stage]').forEach((b) => {
     const n = Number(b.dataset.stage);
     b.classList.toggle('active', n === currentStage);
-    b.classList.toggle('locked', !stageUnlocked(n, g));
-    b.classList.toggle('passed', n < 6 ? g[n].length === 0 : isClosed);
+    b.classList.toggle('locked', n < 7 && !stageUnlocked(n, g));
+    b.classList.toggle('passed', n < 6 ? g[n].length === 0 : n === 6 && isClosed);
   });
 
   // Estado global y bloqueantes
@@ -808,14 +828,14 @@ function render() {
 
   // Navegación
   $('#stageTitle').textContent = TITLES[currentStage];
-  $('#stageCounter').textContent = `Etapa ${currentStage + 1} de 7`;
+  $('#stageCounter').textContent = currentStage === 7 ? 'Diagnóstico y desempeño' : `Etapa ${currentStage + 1} de 7`;
   $('#prevStage').disabled = currentStage === 0;
-  $('#nextStage').disabled = currentStage === 6 || !stageUnlocked(currentStage + 1, g);
-  $('#nextStage').classList.toggle('hidden', currentStage === 6);
+  $('#nextStage').disabled = currentStage >= 6 || !stageUnlocked(currentStage + 1, g);
+  $('#nextStage').classList.toggle('hidden', currentStage >= 6);
 }
 
 function showStage(n) {
-  currentStage = Math.max(0, Math.min(6, n));
+  currentStage = Math.max(0, Math.min(7, n));
   $$('.stage').forEach((s) => s.classList.toggle('active-stage', Number(s.dataset.panel) === currentStage));
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -868,6 +888,7 @@ Object.entries(FIELD_MAP).forEach(([sel, [key, label]]) => {
   $(sel).addEventListener('change', async (e) => {
     if (!job || !requireUser()) { document.activeElement?.blur(); return render(); }
     job[key] = e.target.value.trim();
+    if (key === 'tag' && areaFor(job.tag)) job.area = areaFor(job.tag);
     await commit(`${label} actualizado`, job[key]);
   });
 });
@@ -899,7 +920,11 @@ $('#releaseMaintenance').onclick = async () => {
   const m = checkState('m');
   const missing = [];
   if (!job.ot) missing.push('OT/SAP');
-  if (!job.torqueRef) missing.push('referencia del protocolo de torque (FORM-TORQ) o “No aplica”');
+  const js = jointState(), mst = mechState();
+  if (!js.applies && !job.torqueRef) missing.push('referencia del protocolo de torque (FORM-TORQ) o “No aplica”');
+  missing.push(...js.missing, ...mst.missing);
+  if (js.blockers.length) missing.push(...js.blockers);
+  if (mst.blockers.length) missing.push(...mst.blockers.map((b) => 'fuera de límite: ' + b));
   if (!job.people.maint) missing.push('Supervisor de Mantenimiento');
   if (!job.people.qa) missing.push('QA/QC');
   if (m.criticalNo.length) missing.push(`puntos críticos NO OK (${m.criticalNo.length})`);
@@ -1154,6 +1179,8 @@ function buildReport() {
     <h2>Post-arranque (Pasos 8–16)</h2><table>${chk('sb')}</table>
     <h2>Mediciones</h2>${$('#measureTable').innerHTML}
     <h2>Cierre</h2><p>${job.closure ? `${job.closure.result === 'ESTABLE' ? 'EQUIPO ESTABLE' : 'REQUIERE EVALUACIÓN'} · ${esc(fmt(job.closure.at))} · ${esc(job.closure.by)} · ${esc(job.closure.obs)}` : 'Expediente abierto'}</p>
+    <h2>Uniones bridadas y mediciones mecánicas</h2><table>${(libOf(job.tag)?.joints || []).map((jt) => { const r = job.joints?.[jt.id] || {}; return `<tr><td>${esc(jt.t)}</td><td>${esc(r.used === 'SI' ? 'Intervenida' : r.used === 'NO' ? 'No intervenida' : 'Pendiente')}</td><td>${esc(r.ref || '')}</td><td>${esc(r.result || '')}</td></tr>`; }).join('')}${(libOf(job.tag)?.mech || []).map((m) => `<tr><td>${esc(m.t)}</td><td>máx. ${m.max}"</td><td>${esc(job.mech?.[m.k]?.v ?? '')}"</td><td>${esc(m.src)}</td></tr>`).join('')}</table>
+    <h2>Diagnósticos</h2>${(job.diagnoses || []).map((d) => `<p><b>${esc(fmt(d.at))} · ${esc(d.by)}</b>: ${esc(d.symptoms.join('; '))}${d.findings?.length ? ' · Hallazgos: ' + esc(d.findings.join('; ')) : ''}${d.obs ? ' · ' + esc(d.obs) : ''}</p>`).join('') || '<p>Sin diagnósticos registrados.</p>'}
     <h2>Auditoría</h2>${$('#log').innerHTML}
     <p class="sig">Firmas: ________________ Mantenimiento &nbsp; ________________ QA/QC &nbsp; ________________ Operaciones</p>`;
 }
@@ -1188,9 +1215,9 @@ $('#tagConfirm').onclick = async (e) => {
 $$('[data-stage]').forEach((b) => (b.onclick = () => {
   const n = Number(b.dataset.stage);
   showStage(n);
-  if (job && !stageUnlocked(n)) flash('Etapa bloqueada: complete los requisitos previos.', 'warn');
+  if (job && n < 7 && !stageUnlocked(n)) flash('Etapa bloqueada: complete los requisitos previos.', 'warn');
 }));
-$('#prevStage').onclick = () => showStage(currentStage - 1);
+$('#prevStage').onclick = () => showStage(currentStage === 7 ? 6 : currentStage - 1);
 $('#nextStage').onclick = () => showStage(currentStage + 1);
 
 // Conectividad
@@ -1205,6 +1232,8 @@ window.addEventListener('offline', renderConn);
 
 /* ---------- Inicio ---------- */
 (async function init() {
+  // Esperar a que todos los scripts de la página (biblioteca y diagnóstico) estén cargados.
+  if (document.readyState === 'loading') await new Promise((r) => document.addEventListener('DOMContentLoaded', r, { once: true }));
   $('#appVersion').textContent = APP_VERSION;
   renderConn();
   renderTags();

@@ -172,6 +172,40 @@ dialog td input, dialog td select { min-height: 38px; padding: 6px 8px; margin: 
 .mt { margin-top: 18px !important; }
 @media (max-width: 650px) { dialog .identity-grid.four { grid-template-columns: 1fr; } }
 
+/* Diagnóstico y desempeño */
+.steps { grid-template-columns: repeat(7, 1fr) auto; }
+.steps .diag-step { background: #eef2ff; color: #3730a3; }
+.steps .diag-step.active { background: #3730a3; color: #fff; }
+.warn-box { border-left-color: #d97706; background: #fff8e6; color: #6b4b00; }
+.warn-box:empty { display: none; }
+.warn-box ul { margin: 6px 0; padding-left: 18px; }
+.syms { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 14px; }
+.sym { margin: 0; font-weight: 600; font-size: 0.86rem; padding: 8px 10px; border: 1px solid #dbe7ee; border-radius: 9px; background: #fff; }
+.sym.auto { background: #eef2ff; border-color: #c7d2fe; }
+.sym small { color: #3730a3; font-weight: 800; }
+.findings ul { margin: 0; padding-left: 4px; list-style: none; }
+.findings li { padding: 6px 0; font-weight: 600; color: #3730a3; }
+.diag-card { border: 1px solid #dbe7ee; border-left: 4px solid #3730a3; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; font-size: 0.86rem; }
+.diag-card h4 { margin: 0 0 8px; color: #073b66; }
+.diag-card ul { margin: 4px 0 10px; padding-left: 18px; }
+.chart .hq-line { fill: none; stroke: #dc2626; stroke-width: 2.5; }
+.chart .eff-line { fill: none; stroke: #2563eb; stroke-width: 2; stroke-dasharray: 6 4; }
+.chart .npshr-line { fill: none; stroke: #7c2d12; stroke-width: 2.5; }
+.chart .npsha-line { stroke: #0b6e75; stroke-width: 2; stroke-dasharray: 5 3; }
+.chart .npsha-design { fill: #fde68a; opacity: 0.45; }
+.chart .op-band { fill: #d1fae5; opacity: 0.8; }
+.chart .op-now { fill: #0b6e75; stroke: #fff; stroke-width: 2; }
+.chart .op-old { fill: #94a3b8; stroke: #fff; stroke-width: 1; }
+.chart .design-pt { fill: #fff; stroke: #073b66; stroke-width: 2; }
+.legend .lg-eff { background: repeating-linear-gradient(90deg, #2563eb 0 6px, transparent 6px 9px); }
+.legend .lg-design { width: 10px !important; height: 10px !important; border: 2px solid #073b66; transform: rotate(45deg); background: #fff; }
+.legend .lg-op { background: #a7f3d0; height: 10px !important; }
+.legend .lg-npsha { background: repeating-linear-gradient(90deg, #0b6e75 0 5px, transparent 5px 8px); }
+.legend .lg-npshd { background: #fde68a; height: 10px !important; }
+tr.warn-row td { background: #fff7db; }
+#hydResults td { white-space: normal; }
+#equipData td, #diagHiCauses td, #jointsBox td, #mechBox td { white-space: normal; vertical-align: top; }
+
 footer { text-align: center; padding: 20px; color: #65798a; }
 .report { display: none; }
 

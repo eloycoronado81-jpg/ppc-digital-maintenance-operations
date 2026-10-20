@@ -1,5 +1,26 @@
 # Registro de cambios
 
+## V0.5.0 — Biblioteca técnica, diagnóstico y desempeño hidráulico
+
+Basado en la documentación técnica de las bombas de reflujo (manual IOM Afton 40824, POP-005002, informe John Crane 2013, correos JC PAY-14225, MMP-PPC-002 rev. 12, Piping Plan Pocket Pal, manual y plano Lemco Plan 52, PGRAL-100-IN-M-001). Cada dato muestra su fuente y página.
+
+### Biblioteca técnica
+- Ficha precargada para PAY-4210/4220 (CRIO 1) y PAY-4410/4420 (CRIO 2): Afton ILVS 3x4-11H S/N 40824, sello John Crane 48 tándem, Plan 13 + 52, motor Reliance 40 HP; datos de diseño y de operación actual.
+- Área asignada automáticamente según el TAG. Se agregan CRIO 1 y CRIO 2.
+- Aviso cuando el área no está cubierta por POP-005002 (CRIO 1–2).
+- Discrepancia visible sobre la apertura de descarga al arranque (POP 50% / IOM cerrada / John Crane <10%).
+
+### Mantenimiento
+- Uniones bridadas con protocolo FORM-TORQ por unión: succión 4" #300, descarga 3" #300 y drenaje 3/4" (0.75") #300.
+- Mediciones mecánicas de aceptación con límites documentados (descentramientos del IOM pág. 35, buje de garganta y concentricidad del informe John Crane), obligatorias después de cambio de sello o correctivo; fuera de límite bloquean la liberación.
+- Referencia de rondas de apriete de PGRAL-100-IN-M-001.
+
+### Diagnóstico y desempeño (nueva sección, siempre disponible)
+- Punto de operación sobre la curva certificada 40824TR digitalizada (H-Q, eficiencia, NPSHr, BHP): altura medida, desviación, % BEP, potencia estimada, margen de NPSH.
+- Margen de presión de vapor en la cavidad frente a las referencias del informe John Crane (130%) y del MMP-PPC-002 (50 psi).
+- Diagnóstico por reglas: tabla de síntomas y causas del IOM (pág. 33) con verificaciones respaldadas, y síntomas del sistema de sello (Plan 52, brida, vaporización en caras, venteo, instalación del reservorio, cambio de buffer).
+- Hallazgos automáticos desde las mediciones; el diagnóstico registrado queda en el expediente y en el reporte.
+
 ## V0.4.0 — Persistencia, gates y alineamiento con POP-005002
 
 ### Expediente y persistencia
