@@ -1,1 +1,364 @@
-<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#073b66"><link rel="manifest" href="manifest.json"><link rel="stylesheet" href="styles.css"><title>Afton Reflux Pump | Lista de Verificación</title></head><body><header><div><small>PPC DIGITAL · AFTON · V0.3 PILOTO</small><h1>Lista de Verificación – Proceso de Arranque de Bomba de Reflujo</h1><p>Mantenimiento · QA/QC · Operaciones · Trazabilidad por TAG</p></div><span class="pill ok">● OFFLINE READY</span></header><main><section class="hero"><div><h2>Expediente digital de arranque</h2><p>Flujo guiado por etapas · controles GO/NO-GO · registro local</p></div><button id="newJob">+ Nueva intervención</button></section><section class="card identity"><h3>Identificación de la intervención</h3><div class="identity-grid"><label>TAG<div class="inline"><select id="tag"></select><button id="addTag">+ Equipo</button></div></label><label>Área / CRIO<input id="area" placeholder="Ej. CRIO 4"></label><label>Motivo<select id="reason"><option>Post-cambio de sello mecánico</option><option>Post-mantenimiento preventivo</option><option>Post-correctivo</option><option>Arranque normal</option></select></label><label>OT / SAP<input id="ot"></label><label>PSSR<input id="pssr"></label></div></section><section class="card workflow"><div class="workflow-head"><div><small>PROGRESO DE INTERVENCIÓN</small><h3 id="stageTitle">1. Liberación de Mantenimiento</h3></div><div id="globalStatus" class="banner warn">VERIFICACIÓN INCOMPLETA</div></div><div class="steps" id="steps"><button data-stage="0" class="active"><span>1</span>Mantenimiento</button><button data-stage="1"><span>2</span>Preparación</button><button data-stage="2"><span>3</span>Plan 52</button><button data-stage="3"><span>4</span>Enfriamiento</button><button data-stage="4"><span>5</span>Leak Test</button><button data-stage="5"><span>6</span>Arranque</button><button data-stage="6"><span>7</span>Estabilización</button></div></section><section class="stage active-stage" data-panel="0"><div class="grid"><article class="card"><h2>🔧 Liberación de Mantenimiento</h2><p class="lead">Verifique la condición mecánica antes de entregar el equipo a Operaciones.</p><div id="maintenanceChecklist" class="checklist"></div><label>Observación<input id="maintenanceObs" placeholder="Observación de Mantenimiento"></label><button id="releaseMaintenance" class="primary">Evaluar liberación</button><p id="maintenanceResult"></p></article><article class="card"><h2>Responsables</h2><div class="two"><label>Supervisor Mantenimiento<input id="maint"></label><label>QA/QC<input id="qa"></label></div><div class="rule"><b>Regla de liberación</b><p>Un requisito crítico NO OK bloquea la liberación. La firma digital se incorporará en la siguiente fase.</p></div></article></div></section><section class="stage" data-panel="1"><article class="card"><h2>🏭 Preparación de Operaciones</h2><p class="lead">Verificaciones previas a maniobras de enfriamiento, cebado y arranque.</p><div id="operationsChecklist" class="checklist"></div><div class="two"><label>Operador<input id="operator"></label><label>Supervisor Operaciones<input id="ops"></label></div><p class="notice">Las maniobras específicas se ejecutan conforme al procedimiento operativo vigente.</p></article></section><section class="stage" data-panel="2"><article class="card"><h2>🛢️ Sistema de sello / API Plan 52</h2><label class="toggle"><input id="plan52Applicable" type="checkbox" checked> Plan 52 aplicable al TAG</label><div id="plan52Checklist" class="checklist"></div><div class="two"><label>Presión inicial<input id="sealPressure" type="number" step="any" placeholder="valor"></label><label>Nivel inicial<input id="sealLevel" type="number" step="any" placeholder="valor"></label></div></article></section><section class="stage" data-panel="3"><article class="card"><h2>❄️ Enfriamiento / Cebado</h2><p class="lead">Registre los hitos operativos con fecha, hora y responsable.</p><div class="big-actions"><button onclick="milestone('Inicio de enfriamiento')">Registrar inicio de enfriamiento</button><button onclick="milestone('Purga/Cebado')">Registrar purga / cebado</button></div><p class="notice">La aplicación registra la maniobra; no sustituye el procedimiento operativo ni acciona válvulas/equipos.</p></article></section><section class="stage" data-panel="4"><article class="card"><h2>🧪 Leak Test</h2><p class="lead">El resultado NO CONFORME bloquea automáticamente el gate de arranque.</p><div class="big-actions"><button class="success" onclick="leak(false)">✓ SIN FUGA · CONFORME</button><button class="danger" onclick="leak(true)">✕ FUGA · NO CONFORME</button></div><label>Ubicación / observación<input id="leakObs" placeholder="Obligatorio si existe fuga"></label><p id="leakMsg"></p></article></section><section class="stage" data-panel="5"><article class="card"><h2>▶ Autorización y parámetros de arranque</h2><div class="params"><label>Presión succión<input id="ps" type="number" step="any"></label><label>Presión descarga<input id="pd" type="number" step="any"></label><label>Caudal<input id="flow" type="number" step="any"></label><label>Corriente motor<input id="amps" type="number" step="any"></label><label>Vibración bomba<input id="vp" type="number" step="any"></label><label>Vibración motor<input id="vm" type="number" step="any"></label><label>Temp. rodamiento<input id="temp" type="number" step="any"></label><label>Presión Plan 52<input id="p52" type="number" step="any"></label></div><div class="big-actions"><button id="saveMeasurement">Registrar medición</button><button id="authorizeStart" class="primary">Evaluar autorización de arranque</button></div><p class="notice">No se aplican límites técnicos por defecto. El botón representa autorización documental, no comando físico.</p></article></section><section class="stage" data-panel="6"><div class="grid"><article class="card"><h2>📈 Estabilización</h2><p class="lead">Las mediciones sucesivas construirán la tendencia dinámica del arranque.</p><div class="empty-chart">Tendencia de parámetros<br><small>Gráfica dinámica programada para la siguiente iteración</small></div></article><article class="card"><h2>Historial y trazabilidad</h2><div id="log" class="log"></div></article></div></section><nav class="stage-nav"><button id="prevStage">← Anterior</button><div><b id="stageCounter">Etapa 1 de 7</b><small>Los cambios se conservan localmente</small></div><button id="nextStage" class="primary">Guardar y siguiente →</button></nav></main><footer>PPC Digital · Afton V0.3 · Piloto de validación · No controla físicamente equipos</footer><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#073b66">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+  <title>Afton Reflux Pump | Lista de Verificación</title>
+</head>
+<body class="no-job">
+  <header>
+    <div>
+      <small>PPC DIGITAL · AFTON · V0.4 PILOTO</small>
+      <h1>Lista de Verificación – Proceso de Arranque de Bomba de Reflujo</h1>
+      <p>Mantenimiento · QA/QC · Operaciones · Trazabilidad por TAG</p>
+    </div>
+    <div class="header-side">
+      <label class="user-label">Usuario en turno
+        <input id="user" placeholder="Nombre y apellido" autocomplete="name">
+      </label>
+      <span id="connStatus" class="pill ok">● EN LÍNEA</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <h2>Expediente digital de arranque</h2>
+        <p>Flujo guiado por etapas · controles GO/NO-GO · registro local persistente</p>
+      </div>
+      <div class="hero-actions">
+        <label>Expediente
+          <select id="jobSelect"><option value="">— Sin expedientes —</option></select>
+        </label>
+        <button id="newJob">+ Nueva intervención</button>
+      </div>
+    </section>
+
+    <p id="flash" class="flash" role="status" aria-live="polite"></p>
+
+    <section class="card empty-state" id="emptyState">
+      <h3>No hay un expediente abierto</h3>
+      <p>Ingrese su nombre en <b>Usuario en turno</b> y pulse <b>+ Nueva intervención</b>. Cada intervención genera un expediente independiente por TAG que se conserva en este dispositivo aunque se recargue la página o se pierda la señal.</p>
+    </section>
+
+    <div id="jobArea">
+      <section class="card identity">
+        <div class="identity-head">
+          <h3>Identificación de la intervención</h3>
+          <div class="job-meta"><span id="jobId"></span><span id="jobStatus" class="pill"></span><span id="savedAt" class="saved"></span></div>
+        </div>
+        <fieldset id="fsIdentity">
+          <div class="identity-grid">
+            <label>TAG
+              <div class="inline"><select id="tag"></select><button type="button" id="addTag">+ Equipo</button></div>
+            </label>
+            <label>Área / CRIO
+              <select id="area"><option value="">Seleccione</option><option>CRIO 3</option><option>CRIO 4</option><option>CRIO 5</option></select>
+            </label>
+            <label>Motivo
+              <select id="reason">
+                <option>Post-cambio de sello mecánico</option>
+                <option>Post-mantenimiento preventivo</option>
+                <option>Post-correctivo</option>
+                <option>Arranque normal</option>
+              </select>
+            </label>
+            <label>OT / SAP *<input id="ot" placeholder="Obligatorio para liberar"></label>
+            <label>PSSR *<input id="pssr" placeholder="Obligatorio para arrancar"></label>
+          </div>
+        </fieldset>
+        <div class="equip-strip"><span id="equipSummary"></span><button type="button" id="editEquip">Ficha del equipo y criterios</button></div>
+      </section>
+
+      <section class="card workflow">
+        <div class="workflow-head">
+          <div>
+            <small>PROGRESO DE INTERVENCIÓN</small>
+            <h3 id="stageTitle">1. Liberación de Mantenimiento</h3>
+          </div>
+          <div id="globalStatus" class="banner warn">VERIFICACIÓN INCOMPLETA</div>
+        </div>
+        <div class="steps" id="steps">
+          <button type="button" data-stage="0"><span>1</span>Mantenimiento</button>
+          <button type="button" data-stage="1"><span>2</span>Preparación</button>
+          <button type="button" data-stage="2"><span>3</span>Plan 52</button>
+          <button type="button" data-stage="3"><span>4</span>Enfriamiento</button>
+          <button type="button" data-stage="4"><span>5</span>Leak Test</button>
+          <button type="button" data-stage="5"><span>6</span>Arranque</button>
+          <button type="button" data-stage="6"><span>7</span>Estabilización</button>
+        </div>
+        <div id="blockers" class="blockers"></div>
+      </section>
+
+      <!-- Etapa 1 -->
+      <section class="stage" data-panel="0">
+        <div class="lockmsg" data-lock="0"></div>
+        <div class="grid">
+          <article class="card">
+            <h2>🔧 Liberación de Mantenimiento</h2>
+            <p class="lead">Verifique la condición mecánica antes de entregar el equipo a Operaciones.</p>
+            <fieldset data-fs="0">
+              <div id="maintenanceChecklist" class="checklist"></div>
+              <label>Referencia protocolo de torque * <small class="muted">(N.° FORM-TORQ-001 / OT, o “No aplica” si no se intervinieron juntas)</small><input id="torqueRef" placeholder="Ej. FORM-TORQ-001 · OT 10003378"></label>
+              <label>Observación de Mantenimiento<textarea id="maintenanceObs" rows="2" placeholder="Obligatoria si algún punto queda NO OK"></textarea></label>
+              <button type="button" id="releaseMaintenance" class="primary">Liberar Mantenimiento</button>
+            </fieldset>
+            <p id="maintenanceResult"></p>
+            <button type="button" id="reopenMaintenance" class="danger hidden">Revocar liberación de Mantenimiento</button>
+          </article>
+          <article class="card">
+            <h2>Responsables</h2>
+            <fieldset data-fs="0">
+              <div class="two">
+                <label>Supervisor Mantenimiento *<input id="pMaint"></label>
+                <label>QA/QC *<input id="pQa"></label>
+              </div>
+            </fieldset>
+            <div class="rule">
+              <b>Regla de liberación</b>
+              <p>Requiere OT/SAP, referencia del protocolo de torque, todos los puntos en OK (o N/A cuando no es crítico), Supervisor de Mantenimiento y QA/QC. Un punto crítico NO OK bloquea la liberación. Una vez liberado, el checklist queda congelado; para corregirlo se debe revocar la liberación, lo que queda registrado.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Etapa 2 -->
+      <section class="stage" data-panel="1">
+        <div class="lockmsg" data-lock="1"></div>
+        <article class="card">
+          <h2>🏭 Preparación de Operaciones</h2>
+          <p class="lead">Verificaciones previas a maniobras de enfriamiento, cebado y arranque.</p>
+          <p id="releaseReceived" class="notice"></p>
+          <fieldset data-fs="1">
+            <div id="operationsChecklist" class="checklist"></div>
+            <div class="two">
+              <label>Operador *<input id="pOperator"></label>
+              <label>Supervisor Operaciones *<input id="pOps"></label>
+            </div>
+          </fieldset>
+          <p class="notice">Las maniobras específicas se ejecutan conforme al procedimiento operativo vigente. Si Mantenimiento revoca o vuelve a emitir la liberación, este checklist debe re-verificarse.</p>
+        </article>
+      </section>
+
+      <!-- Etapa 3 -->
+      <section class="stage" data-panel="2">
+        <div class="lockmsg" data-lock="2"></div>
+        <article class="card">
+          <h2>🛢️ Sistema de sello / API Plan 52</h2>
+          <fieldset data-fs="2">
+            <label class="toggle"><input id="plan52Applicable" type="checkbox"> Plan 52 aplicable al TAG</label>
+            <label id="plan52JustWrap" class="hidden">Justificación de NO aplica *<input id="plan52Justification" placeholder="Ej. sello simple sin sistema buffer según datasheet"></label>
+            <div id="plan52Body">
+              <p class="ref">📘 <span class="proc-code"></span><br><span id="refBarrier"></span></p>
+              <div id="plan52Checklist" class="checklist"></div>
+              <div class="two">
+                <label>Presión inicial *
+                  <div class="inline"><input id="sealPressure" type="number" step="any" inputmode="decimal" placeholder="valor"><select id="sealPressureUnit" class="unit"><option>psig</option><option>barg</option><option>kPa</option></select></div>
+                  <small id="sealPressureWarn" class="red"></small>
+                </label>
+                <label>Nivel inicial *
+                  <div class="inline"><input id="sealLevel" type="number" step="any" inputmode="decimal" placeholder="valor"><select id="sealLevelUnit" class="unit"><option>%</option><option>mm</option></select></div>
+                </label>
+              </div>
+              <div class="rule">
+                <b>Prueba de consumo de buffer en stand-by (opcional)</b>
+                <p>Con la bomba preparada, fría y detenida: registre el nivel inicial, espere el intervalo definido por el procedimiento y registre el nivel final. Si se detecta consumo, el arranque queda bloqueado.</p>
+                <div class="two">
+                  <label>Nivel inicial stand-by
+                    <div class="inline"><input id="sb0" type="number" step="any" inputmode="decimal"><button type="button" id="sb0Btn">Registrar</button></div>
+                    <small id="sb0At" class="muted"></small>
+                  </label>
+                  <label>Nivel final stand-by
+                    <div class="inline"><input id="sb1" type="number" step="any" inputmode="decimal"><button type="button" id="sb1Btn">Registrar</button></div>
+                    <small id="sb1At" class="muted"></small>
+                  </label>
+                </div>
+                <label>Resultado
+                  <select id="sbResult">
+                    <option value="">No realizada / en curso</option>
+                    <option value="SIN_CONSUMO">Sin consumo apreciable</option>
+                    <option value="CONSUMO">Consumo detectado · bloquea arranque</option>
+                  </select>
+                </label>
+                <p id="sbSummary" class="muted"></p>
+              </div>
+            </div>
+          </fieldset>
+        </article>
+      </section>
+
+      <!-- Etapa 4 -->
+      <section class="stage" data-panel="3">
+        <div class="lockmsg" data-lock="3"></div>
+        <article class="card">
+          <h2>❄️ Enfriamiento / Cebado (Pasos 2–3)</h2>
+          <p class="ref">📘 <span class="proc-code"></span> · Rotación de bombas de reflujo</p>
+          <fieldset data-fs="3">
+            <label>Paso 2 · Condición de enfriamiento de la bomba en S/B *
+              <select id="coolInitial">
+                <option value="">Seleccione</option>
+                <option value="ADECUADO">Enfriamiento adecuado · se avisa a Sala de Control</option>
+                <option value="NO_ADECUADO">Enfriamiento NO adecuado · ejecutar purga a COLD FLARE</option>
+              </select>
+            </label>
+            <div id="purgeSteps">
+              <p class="lead">Si el enfriamiento no es adecuado, ejecute y registre la purga en orden. Fecha, hora y responsable se guardan automáticamente.</p>
+              <div class="big-actions">
+              <button type="button" data-milestone="COOL_START">1 · Inicio de purga a COLD FLARE</button>
+              <button type="button" data-milestone="COOL_END">2 · Congelamiento observado</button>
+              <button type="button" data-milestone="PURGE">3 · Purgas cerradas</button>
+              </div>
+              <label>Observación del hito<input id="milestoneObs" placeholder="Opcional: temperatura de carcasa, condición observada, etc."></label>
+            </div>
+            <div id="coolingChecklist" class="checklist"></div>
+          </fieldset>
+          <div id="milestoneList" class="timeline"></div>
+          <p class="notice">La aplicación registra la maniobra; no sustituye el procedimiento operativo ni acciona válvulas/equipos.</p>
+        </article>
+      </section>
+
+      <!-- Etapa 5 -->
+      <section class="stage" data-panel="4">
+        <div class="lockmsg" data-lock="4"></div>
+        <article class="card">
+          <h2>🧪 Leak Test</h2>
+          <p class="lead">Un resultado NO CONFORME bloquea el arranque hasta registrar la resolución y repetir la prueba.</p>
+          <fieldset data-fs="4">
+            <label>Ubicación / observación<input id="leakObs" placeholder="Obligatorio si existe fuga"></label>
+            <div class="big-actions">
+              <button type="button" id="leakOk" class="success">✓ SIN FUGA · CONFORME</button>
+              <button type="button" id="leakBad" class="danger">✕ FUGA · NO CONFORME</button>
+            </div>
+            <div id="leakResolution" class="resolution hidden">
+              <b class="red">Fuga registrada · arranque bloqueado</b>
+              <label>Acción tomada *<input id="leakResObs" placeholder="Describa la acción y la referencia (OT, aviso, etc.)"></label>
+              <div class="big-actions">
+                <button type="button" id="leakReturn" class="danger">Retornar a Mantenimiento</button>
+                <button type="button" id="leakCorrect">Corrección operativa · repetir Leak Test</button>
+              </div>
+              <small class="muted">“Retornar a Mantenimiento” revoca la liberación mecánica; Operaciones deberá re-verificar su checklist y los hitos de enfriamiento.</small>
+            </div>
+          </fieldset>
+          <div id="leakList" class="timeline"></div>
+        </article>
+      </section>
+
+      <!-- Etapa 6 -->
+      <section class="stage" data-panel="5">
+        <div class="lockmsg" data-lock="5"></div>
+        <article class="card">
+          <h2>▶ Autorización y arranque (Pasos 4–7)</h2>
+          <p class="ref">📘 <span class="proc-code"></span><br><span id="refDischarge"></span></p>
+          <fieldset data-fs="5">
+            <div id="preStartChecklist" class="checklist"></div>
+            <div class="big-actions">
+              <button type="button" id="authorizeStart" class="primary">Autorizar arranque (documental)</button>
+              <button type="button" id="startDone">Paso 7 · Registrar START ejecutado</button>
+            </div>
+          </fieldset>
+          <p id="startResult"></p>
+          <h3>Parámetros durante el arranque</h3>
+          <div id="kpiStart" class="kpis"></div>
+          <fieldset data-fs="m5">
+            <div id="paramsStart" class="params"></div>
+            <button type="button" class="primary" data-save-measure="ARRANQUE">Registrar medición</button>
+          </fieldset>
+          <p class="notice">No se aplican límites técnicos por defecto. El botón de autorización representa una habilitación documental, no un comando físico.</p>
+        </article>
+      </section>
+
+      <!-- Etapa 7 -->
+      <section class="stage" data-panel="6">
+        <div class="lockmsg" data-lock="6"></div>
+        <div class="grid even">
+          <article class="card">
+            <h2>📈 Estabilización</h2>
+            <div id="kpiStab" class="kpis"></div>
+            <fieldset data-fs="m6">
+              <div id="paramsStab" class="params"></div>
+              <button type="button" class="primary" data-save-measure="ESTABILIZACION">Registrar medición de estabilización</button>
+            </fieldset>
+            <div class="chart-head">
+              <h3>Tendencia</h3>
+              <select id="trendGroup" class="unit"></select>
+            </div>
+            <div id="trend" class="chart"></div>
+            <div id="measureTable" class="table-wrap"></div>
+          </article>
+          <article class="card">
+            <h2>Post-arranque (Pasos 8–16)</h2>
+            <div id="postStartChecklist" class="checklist"></div>
+            <h2>Cierre del expediente</h2>
+            <fieldset data-fs="6">
+              <label>Resultado final *
+                <select id="closeResult">
+                  <option value="">Seleccione</option>
+                  <option value="ESTABLE">EQUIPO ESTABLE</option>
+                  <option value="REQUIERE_EVALUACION">REQUIERE EVALUACIÓN</option>
+                </select>
+              </label>
+              <label>Observación de cierre<textarea id="closeObs" rows="2" placeholder="Obligatoria si requiere evaluación"></textarea></label>
+              <button type="button" id="closeJob" class="primary">Cerrar expediente</button>
+            </fieldset>
+            <p id="closeMsg"></p>
+            <div class="big-actions">
+              <button type="button" id="printReport">Imprimir / PDF</button>
+              <button type="button" id="exportJson">Exportar JSON</button>
+            </div>
+            <h3>Historial y trazabilidad</h3>
+            <div id="log" class="log"></div>
+          </article>
+        </div>
+      </section>
+
+      <nav class="stage-nav">
+        <button type="button" id="prevStage">← Anterior</button>
+        <div><b id="stageCounter">Etapa 1 de 7</b><small>Cada cambio se guarda automáticamente en el dispositivo</small></div>
+        <button type="button" id="nextStage" class="primary">Siguiente →</button>
+      </nav>
+    </div>
+  </main>
+
+  <dialog id="tagDialog">
+    <form method="dialog">
+      <h3>Agregar equipo</h3>
+      <label>TAG del equipo<input id="newTagInput" placeholder="Ej. PAY-14410" autocomplete="off"></label>
+      <p id="tagError" class="red"></p>
+      <div class="big-actions">
+        <button value="cancel" formnovalidate>Cancelar</button>
+        <button id="tagConfirm" value="ok" class="primary">Agregar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="equipDialog" class="wide">
+    <form method="dialog">
+      <h3>Ficha del equipo · <span id="eqTag"></span></h3>
+      <div class="identity-grid four">
+        <label>Modelo<input id="eq-model" placeholder="Ej. API 610 OH2"></label>
+        <label>Servicio<input id="eq-service" placeholder="Ej. Reflujo desetanizadora"></label>
+        <label>Sello / API Plan<input id="eq-seal" placeholder="Ej. Dual · Plan 52"></label>
+        <label>Motor<input id="eq-motor" placeholder="Ej. 250 kW · 4 polos"></label>
+      </div>
+      <h3 class="mt">Criterios de aceptación</h3>
+      <p class="muted">Ingrese solo límites de fuentes aprobadas (datasheet, manual del fabricante, CBM, alarmas/trips). Un criterio sin fuente no se aplica. La aplicación no trae límites por defecto.</p>
+      <div id="eqCriteria" class="table-wrap"></div>
+      <p id="eqError" class="red"></p>
+      <div class="big-actions">
+        <button value="cancel" formnovalidate>Cancelar</button>
+        <button id="eqSave" value="ok" class="primary">Guardar ficha</button>
+      </div>
+    </form>
+  </dialog>
+
+  <section id="report" class="report" aria-hidden="true"></section>
+
+  <footer>PPC Digital · Afton <span id="appVersion"></span> · Piloto de validación · No controla físicamente equipos ni sustituye procedimientos vigentes</footer>
+  <script src="app.js"></script>
+</body>
+</html>
